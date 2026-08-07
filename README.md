@@ -60,16 +60,31 @@ No certificates, no secrets, no paid account.
 
 ### Build & install (each time)
 
+Use **[SideStore](https://sidestore.io)**, not AltStore PAL — PAL is a
+marketplace that only installs apps Apple has notarized under a **paid**
+Developer Program membership, so it cannot install a private build like this
+one signed with a free Apple ID. SideStore signs and installs any `.ipa` you
+give it on-device, with a free Apple ID. (AltStore Classic also works and
+uses the same free-ID signing, but needs a computer running AltServer for
+setup and every 7-day refresh; SideStore only needs a computer once.)
+
 1. Push to `main` (or run the workflow manually from the Actions tab).
 2. Download **`DoomScroll-sideload`** from the run's Artifacts
    (or from the Release, if you pushed a tag like `v1.0.0`).
-3. Sideload `DoomScroll-unsigned.ipa` with **AltStore Classic** or
-   **SideStore** using your free Apple ID.
-   - Note: **AltStore PAL** (EU marketplace) can't sign personal IPAs; use
-     AltStore Classic/SideStore for this.
-4. Free-Apple-ID apps expire after **7 days**; AltStore/SideStore re-sign
-   automatically when they can.
-5. Watch app: check the Watch app on iPhone → Available Apps. If it won't
+3. **One-time SideStore setup** (needs a computer once, or a pairing app —
+   see [SideStore's install docs](https://docs.sidestore.io/docs/installation/install)):
+   install SideStore itself and generate its "pairing file," which lets your
+   iPhone sign apps on-device afterward over a local WireGuard tunnel.
+4. In SideStore, use **Import IPA** and pick `DoomScroll-unsigned.ipa` —
+   SideStore signs it with your Apple ID and installs it directly (no source
+   needed for a private build like this).
+5. Keep SideStore's background refresh (Local Dev VPN) enabled: free-ID apps
+   expire after **7 days**, and SideStore re-signs them automatically while
+   your iPhone is on the same network periodically. A free Apple ID caps you
+   at **3 installed apps at once** (including SideStore itself) — this app
+   pair only needs 2 of those 3 slots (iOS app; the Watch app doesn't count
+   separately against the limit).
+6. Watch app: check the Watch app on iPhone → Available Apps. If it won't
    install (common with sideloading — see limitations), the iOS app still
    works; the guaranteed path is a one-time Xcode deploy from any borrowed
    or cloud Mac.

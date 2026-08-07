@@ -77,20 +77,35 @@ from real inter-arrival times so dropped frames scroll farther, not slower.
 
 This is the biggest *practical* risk of the whole project:
 
+- **AltStore PAL will not work for this app at all.** PAL is a marketplace,
+  not a self-signing tool: per AltStore's own developer docs, getting *any*
+  app into a PAL-installable source — even your own private one — requires
+  submitting it through App Store Connect with a **paid** Apple Developer
+  Program membership and passing Apple **Notarization**, plus signing the
+  Alternative EU Terms Addendum. There is no free-Apple-ID path inside PAL.
+  PAL is also gated to Apple IDs with an **EU account region** (not the UK),
+  regardless of physical location. If you don't have a paid Developer account,
+  skip PAL entirely.
+- **Use [SideStore](https://sidestore.io) instead** (or AltStore Classic).
+  Both sign arbitrary `.ipa` files on-device with a **free** Apple ID —
+  SideStore's "Import IPA" is the direct equivalent of what the original plan
+  assumed PAL could do. SideStore needs a computer only once, to generate a
+  pairing file; after that it re-signs in the background over a local
+  WireGuard tunnel as long as your iPhone periodically shares a network with
+  where that tunnel runs. AltStore Classic works the same way but needs
+  AltServer running on a computer for the initial install *and* every 7-day
+  refresh.
 - **AltStore / SideStore remap bundle IDs** when signing with a free Apple ID.
   The Watch↔iPhone pairing depends on `WKCompanionAppBundleIdentifier`
   matching the iOS app's bundle ID exactly, and remapping breaks that link, so
   the Watch app typically won't install from the Watch app gallery.
 - Free-account provisioning for watchOS through sideloaders is unreliable in
-  general; results vary by tool and version (Sideloadly, SideStore nightlies).
+  general; results vary by tool and version.
 - **The only fully supported free path** for getting the Watch app onto a
   physical watch is a one-time deploy from Xcode with a free Apple ID — from
   any borrowed or cloud Mac (e.g. a MacinCloud/MacStadium trial hour). After
   that, the 7-day re-sign only affects launching, and rebuilds are still CI's
   job.
-- **AltStore PAL** (the EU alternative marketplace) distributes notarized
-  marketplace apps; it is not a free-Apple-ID signer for your own IPA. For
-  self-signing, use AltStore Classic or SideStore.
 
 The iOS app alone sideloads fine everywhere and is fully usable with the Watch
 app installed by any means.
