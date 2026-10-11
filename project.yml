@@ -32,6 +32,8 @@ targets:
     sources:
       - Sources/iOS
       - path: Resources/iOS
+      - path: Resources/AppIcon.icon
+        type: file
       - path: Resources/PrivacyInfo.xcprivacy
     dependencies:
       - package: ScrollCore
@@ -60,6 +62,8 @@ targets:
     sources:
       - Sources/Watch
       - path: Resources/Watch
+      - path: Resources/AppIcon.icon
+        type: file
       - path: Resources/PrivacyInfo.xcprivacy
     dependencies:
       - package: ScrollCore
@@ -91,6 +95,8 @@ targets:
     sources:
       - Sources/Mac
       - path: Resources/Mac
+      - path: Resources/AppIcon.icon
+        type: file
       - path: Resources/PrivacyInfo.xcprivacy
     dependencies:
       - package: ScrollCore

@@ -13,14 +13,14 @@ concurrency:
 jobs:
   unit-tests:
     name: ScrollCore unit tests
-    runs-on: macos-15
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
       - run: swift test --package-path Packages/ScrollCore
 
   build-simulators:
     name: Build for Simulator (no signing)
-    runs-on: macos-15
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
       - run: brew install xcodegen
