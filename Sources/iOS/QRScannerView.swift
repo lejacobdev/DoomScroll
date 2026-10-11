@@ -1,13 +1,16 @@
 import AVFoundation
 import SwiftUI
 
-/// Camera view that reports the first QR code it sees.
+/// Camera view that reports the first QR code it sees. Re-create it (change
+/// `.id`) to scan again after a rejected code.
 struct QRScannerView: UIViewControllerRepresentable {
     var onCode: (String) -> Void
+    var onPermission: (Bool) -> Void = { _ in }
 
     func makeUIViewController(context: Context) -> ScannerController {
         let c = ScannerController()
         c.onCode = onCode
+        c.onPermission = onPermission
         return c
     }
 
@@ -15,6 +18,7 @@ struct QRScannerView: UIViewControllerRepresentable {
 
     final class ScannerController: UIViewController, AVCaptureMetadataOutputObjectsDelegate {
         var onCode: ((String) -> Void)?
+        var onPermission: ((Bool) -> Void)?
         private let session = AVCaptureSession()
         private var didReport = false
 
@@ -22,14 +26,17 @@ struct QRScannerView: UIViewControllerRepresentable {
             super.viewDidLoad()
             view.backgroundColor = .black
             AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
-                DispatchQueue.main.async { granted ? self?.configure() : self?.showDenied() }
+                DispatchQueue.main.async {
+                    self?.onPermission?(granted)
+                    if granted { self?.configure() }
+                }
             }
         }
 
         private func configure() {
             guard let device = AVCaptureDevice.default(for: .video),
                   let input = try? AVCaptureDeviceInput(device: device),
-                  session.canAddInput(input) else { return showDenied() }
+                  session.canAddInput(input) else { return }
             session.addInput(input)
             let output = AVCaptureMetadataOutput()
             guard session.canAddOutput(output) else { return }
@@ -41,16 +48,6 @@ struct QRScannerView: UIViewControllerRepresentable {
             preview.frame = view.bounds
             view.layer.addSublayer(preview)
             DispatchQueue.global(qos: .userInitiated).async { [session] in session.startRunning() }
-        }
-
-        private func showDenied() {
-            let label = UILabel()
-            label.text = "Camera access is off.\nEnable it in Settings → DoomScroll."
-            label.numberOfLines = 0
-            label.textAlignment = .center
-            label.textColor = .white
-            label.frame = view.bounds.insetBy(dx: 24, dy: 0)
-            view.addSubview(label)
         }
 
         override func viewDidLayoutSubviews() {

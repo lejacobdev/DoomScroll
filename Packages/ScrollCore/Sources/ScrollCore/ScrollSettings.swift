@@ -8,6 +8,8 @@ public struct ScrollSettings: Codable, Equatable, Sendable {
     public var invertY = false
     public var target: ScrollTarget = .pointer
     public var hapticsEnabled = true
+    /// Set once the user has demonstrated which way they scroll.
+    public var calibrated = false
 
     public init() {}
 

@@ -16,17 +16,25 @@ the Mac doing the part iOS refuses to let an app do.
 
 ## Gesture
 
-- **watchOS 11+ (Series 9, Ultra 2, and later):** the system **Double Tap**
-  gesture is wired via `.handGestureShortcut(.primaryAction)`. This is
-  Apple's real hardware gesture — the same one used for answering calls —
-  not an approximation.
-- **watchOS 10 (no system Double Tap):** `DoubleTapDetector` falls back to
-  reading raw accelerometer peaks and recognizing two taps in quick
-  succession. Less reliable than the system gesture, especially with the
-  wrist in motion; tune `tapThreshold`/`minInterval`/`maxInterval` in
-  `Sources/Watch/DoubleTapDetector.swift` if it's over- or under-firing.
-- No touch is used anywhere in the control loop once scroll mode is active —
-  wrist motion alone drives scrolling, per your request.
+- **watchOS 11+ on Series 9, Series 10 or Ultra 2 and later:** the system
+  **Double Tap** gesture (index finger and thumb, twice) is bound to the
+  main button with `.handGestureShortcut(.primaryAction)`. This is Apple's
+  real hardware gesture, the same one used to answer calls.
+- **Older Apple Watches, or watchOS 10:** the system gesture does not exist
+  for third-party apps, so you tap the on-screen button to start and stop.
+  There is deliberately **no** accelerometer-based "fake double tap": it
+  fires by accident while walking or gesturing, which is worse than a tap.
+- Once scroll mode is on, wrist motion alone drives scrolling. No touch.
+
+## Calibration
+
+Which way a wrist snap maps to "down" depends on which wrist you wear the
+watch on, which side the crown is on, and how you personally think about
+scrolling. Rather than guess, the Watch app asks you once to flick the way
+you want to scroll down, then roll the way you want to scroll right
+(`CalibrationSession` in ScrollCore, covered by tests). The result is stored
+as the two "Reverse" settings and synced to the iPhone. Run it again any
+time from the iPhone app ("Recalibrate wrist").
 
 ## Control feel
 
@@ -43,6 +51,17 @@ Two styles, switchable in the iPhone app's Settings:
 Both run entirely from `CMDeviceMotion.attitude`/`rotationRate` — pitch
 drives vertical scroll, roll drives horizontal, yaw is ignored so turning
 your head or torso while wearing the watch doesn't inject noise.
+
+## The iPhone has to stay awake
+
+The Watch prefers a direct connection to the Mac. If it can only reach the
+iPhone (different network, Watch Wi-Fi asleep), the iPhone relays. iOS
+suspends background apps, so relaying works reliably while DoomScroll is
+open on the iPhone and for roughly 25 seconds after you lock it. DoomScroll
+holds a short background task while messages flow, but it does not abuse
+background modes (no silent audio, no fake location) because that gets apps
+rejected. For long hands-free sessions, keep the app open or stay on Wi-Fi
+with the Mac so the Watch connects directly.
 
 ## Reliability details worth knowing
 

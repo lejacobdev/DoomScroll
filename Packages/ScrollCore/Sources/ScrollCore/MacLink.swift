@@ -11,6 +11,8 @@ public final class MacLink: @unchecked Sendable {
         case searching
         case connecting
         case ready
+        /// The system is blocking local-network access (Settings > Privacy > Local Network).
+        case localNetworkDenied
     }
 
     public static let serviceType = "_doomscroll._tcp"
@@ -87,7 +89,21 @@ public final class MacLink: @unchecked Sendable {
             self?.queue.async { self?.handle(results) }
         }
         b.stateUpdateHandler = { [weak self] st in
-            if case .failed = st { self?.queue.async { self?.restartSearch() } }
+            self?.queue.async {
+                guard let self else { return }
+                switch st {
+                case .failed:
+                    self.restartSearch()
+                case let .waiting(error):
+                    // -65570 is kDNSServiceErr_PolicyDenied: the user declined Local Network access.
+                    if case let .dns(code) = error, code == -65570 {
+                        self.state = .localNetworkDenied
+                    }
+                case .ready:
+                    if self.state == .localNetworkDenied { self.state = .searching }
+                default: break
+                }
+            }
         }
         browser = b
         b.start(queue: queue)

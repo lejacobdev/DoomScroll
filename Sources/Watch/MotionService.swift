@@ -24,18 +24,38 @@ final class MotionService: @unchecked Sendable {
     private let log = Logger(subsystem: "dev.doomscroll.watch", category: "motion")
     private let processor = WristMotionProcessor()
     private var needsNeutral = true
+    private var calibration: CalibrationSession?
     private var lastSent: TimeInterval = 0
 
     /// Called on the motion queue with each output to transmit.
     var onOutput: (@Sendable (WireMessage) -> Void)?
 
+    /// Called on the motion queue while calibrating.
+    var onCalibration: (@Sendable (CalibrationSession.Outcome) -> Void)?
+
     var isAvailable: Bool { motion.isDeviceMotionAvailable }
+
+    /// Routes raw motion into a calibration session instead of the scroll processor.
+    func startCalibration(_ session: CalibrationSession) {
+        guard motion.isDeviceMotionAvailable else { return }
+        calibration = session
+        if !motion.isDeviceMotionActive { beginUpdates() }
+    }
+
+    func stopCalibration() {
+        calibration = nil
+    }
 
     func start(settings: ScrollSettings) {
         guard motion.isDeviceMotionAvailable, !motion.isDeviceMotionActive else { return }
         processor.config = settings.processorConfig
         needsNeutral = true
         lastSent = 0
+        calibration = nil
+        beginUpdates()
+    }
+
+    private func beginUpdates() {
         motion.deviceMotionUpdateInterval = 1.0 / 50.0
         motion.startDeviceMotionUpdates(to: queue) { [weak self] dm, error in
             guard let self else { return }
@@ -50,6 +70,7 @@ final class MotionService: @unchecked Sendable {
 
     func stop() {
         motion.stopDeviceMotionUpdates()
+        calibration = nil
     }
 
     func update(settings: ScrollSettings) {
@@ -66,6 +87,11 @@ final class MotionService: @unchecked Sendable {
         }
         let sample = MotionSample(t: dm.timestamp, pitch: verticalAngle, roll: horizontalAngle,
                                   pitchRate: dm.rotationRate.y, rollRate: dm.rotationRate.x)
+        if let calibration {
+            let outcome = calibration.process(sample)
+            if outcome != .none { onCalibration?(outcome) }
+            return
+        }
         for output in processor.process(sample) {
             switch output {
             case let .scroll(dx, dy): onOutput?(.scroll(dx: dx, dy: dy))

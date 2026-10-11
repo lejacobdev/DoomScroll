@@ -7,7 +7,12 @@ import ServiceManagement
 @MainActor
 final class MacModel: ObservableObject {
     @Published var trusted = ScrollInjector.isTrusted
-    @Published var clientCount = 0
+    @Published var clientCount = 0 {
+        didSet { if clientCount > 0 && !hasPairedDevice { hasPairedDevice = true } }
+    }
+    @Published var hasPairedDevice = UserDefaults.standard.bool(forKey: "hasPairedDevice") {
+        didSet { UserDefaults.standard.set(hasPairedDevice, forKey: "hasPairedDevice") }
+    }
     @Published var scrollModeActive = false
     @Published var target: ScrollTarget {
         didSet {
@@ -91,6 +96,7 @@ final class MacModel: ObservableObject {
         fresh.store()
         token = fresh
         server?.updateKey(fresh.key)
+        hasPairedDevice = false
     }
 
     func setLaunchAtLogin(_ on: Bool) {

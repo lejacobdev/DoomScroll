@@ -38,6 +38,12 @@ final class WatchConnectivityBridge: NSObject, WCSessionDelegate, @unchecked Sen
         }
     }
 
+    /// Queued, reliable delivery (survives the iPhone app not running).
+    func send(control: ControlMessage) {
+        guard WCSession.default.activationState == .activated else { return }
+        WCSession.default.transferUserInfo(control.dictionary)
+    }
+
     var isRelayAvailable: Bool {
         let s = WCSession.default
         return s.activationState == .activated && s.isReachable

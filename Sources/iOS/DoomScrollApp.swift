@@ -7,7 +7,14 @@ struct DoomScrollApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView(model: model)
+            Group {
+                if model.hasOnboarded {
+                    HomeView(model: model)
+                } else {
+                    OnboardingView(model: model)
+                }
+            }
+            .animation(.snappy, value: model.hasOnboarded)
         }
         .onChange(of: scenePhase) { _, phase in
             switch phase {

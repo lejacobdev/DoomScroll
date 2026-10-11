@@ -55,14 +55,16 @@ WatchConnectivity).
 
 ## First run
 
-1. Launch **DoomScrollMac**. It appears in the menu bar. Click it → grant
-   Accessibility access when prompted (System Settings → Privacy & Security
-   → Accessibility).
-2. Click **Pair iPhone…** in the Mac menu — shows a QR code.
-3. On your iPhone, open **DoomScroll** → **Scan to pair** → scan that code.
-4. Open **DoomScroll** on your Apple Watch.
-5. Double-tap your fingers (or tap the on-screen button) to start scroll
-   mode, flick or tilt your wrist, double-tap again to stop.
+The iPhone app walks you through everything:
+
+1. **Mac:** launch DoomScrollMac (menu bar) and allow Accessibility. The
+   menu shows a checklist until setup is done.
+2. **Pair:** in the Mac menu choose *Pair iPhone*, then scan the code from
+   the iPhone app's setup flow.
+3. **Watch:** open DoomScroll on your Apple Watch.
+4. **Calibrate:** two quick flicks on the Watch teach it which way you
+   scroll, so wrist side and crown position never matter.
+5. Double-tap your fingers to start, flick your wrist, double-tap to stop.
 
 ## CI and releases
 
@@ -76,9 +78,9 @@ Program account for both.
 swift test --package-path Packages/ScrollCore
 ```
 
-27 tests cover the wire protocol (HMAC auth, replay/staleness rejection,
+34 tests cover the wire protocol (HMAC auth, replay/staleness rejection,
 pairing token round-trip), the motion processor (flick detection, tilt
-deadzone/scaling, inversion), momentum physics, settings, WatchConnectivity
+deadzone/scaling, inversion), momentum physics, wrist calibration, settings, WatchConnectivity
 dictionary encoding, line framing, and a real loopback-TCP integration test
 against `ScrollServer` that proves tampered/replayed/wrong-key messages are
 actually rejected over the network, not just in the authenticator's own

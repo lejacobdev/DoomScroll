@@ -315,3 +315,74 @@ import Network
     }
 }
 #endif
+
+@Suite struct CalibrationTests {
+    /// A 0.12 s snap on one axis; `sign` picks the direction.
+    private func snap(sign: Double, vertical: Bool, from start: Double = 0) -> [MotionSample] {
+        var out: [MotionSample] = []
+        var t = start
+        for r in [1.0, 4.0, 6.0, 5.0, 2.5, 0.5, -2.0, -4.0, -3.0, -1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0] {
+            out.append(MotionSample(t: t, pitch: 0, roll: 0,
+                                    pitchRate: vertical ? sign * r : 0,
+                                    rollRate: vertical ? 0 : sign * r))
+            t += 0.02
+        }
+        return out
+    }
+
+    private func run(_ session: CalibrationSession, _ samples: [MotionSample]) -> [CalibrationSession.Outcome] {
+        samples.map { session.process($0) }.filter { $0 != .none }
+    }
+
+    @Test func positiveFlicksMeanNoInversion() {
+        let s = CalibrationSession()
+        #expect(run(s, snap(sign: 1, vertical: true)) == [.accepted(.down)])
+        #expect(s.step == .right)
+        #expect(run(s, snap(sign: 1, vertical: false, from: 2)) == [.finished(invertX: false, invertY: false)])
+        #expect(s.isFinished)
+    }
+
+    @Test func negativeFlicksMeanInversion() {
+        let s = CalibrationSession()
+        _ = run(s, snap(sign: -1, vertical: true))
+        #expect(run(s, snap(sign: -1, vertical: false, from: 2)) == [.finished(invertX: true, invertY: true)])
+    }
+
+    @Test func eachAxisIsLearnedIndependently() {
+        let s = CalibrationSession()
+        _ = run(s, snap(sign: 1, vertical: true))
+        #expect(run(s, snap(sign: -1, vertical: false, from: 2)) == [.finished(invertX: true, invertY: false)])
+    }
+
+    @Test func wrongAxisIsRejectedAndRetryWorks() {
+        let s = CalibrationSession()
+        #expect(run(s, snap(sign: 1, vertical: false)) == [.wrongAxis(expected: .down)])
+        #expect(s.step == .down)
+        #expect(run(s, snap(sign: 1, vertical: true, from: 2)) == [.accepted(.down)])
+    }
+
+    @Test func restartForgetsEverything() {
+        let s = CalibrationSession()
+        _ = run(s, snap(sign: -1, vertical: true))
+        s.restart()
+        #expect(s.step == .down)
+        _ = run(s, snap(sign: 1, vertical: true, from: 3))
+        #expect(run(s, snap(sign: 1, vertical: false, from: 6)) == [.finished(invertX: false, invertY: false)])
+    }
+}
+
+@Suite struct ControlMessageTests {
+    @Test func calibrationResultRoundTrips() {
+        let m = ControlMessage.calibrationResult(invertX: true, invertY: false)
+        #expect(ControlMessage(dictionary: m.dictionary) == m)
+        #expect(ControlMessage(dictionary: ["t": "nope", "a": 1, "b": 1]) == nil)
+        #expect(ControlMessage(dictionary: ["t": "cal_result"]) == nil)
+    }
+
+    @Test func calibratedFlagSurvivesJSON() throws {
+        var s = ScrollSettings()
+        s.calibrated = true
+        let back = try JSONDecoder().decode(ScrollSettings.self, from: JSONEncoder().encode(s))
+        #expect(back.calibrated)
+    }
+}

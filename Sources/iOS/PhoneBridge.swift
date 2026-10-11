@@ -10,6 +10,7 @@ final class PhoneBridge: NSObject, WCSessionDelegate, @unchecked Sendable {
 
     /// Called for every live message from the Watch (on a WatchConnectivity queue).
     var onMessage: (@Sendable (WireMessage) -> Void)?
+    var onControl: (@Sendable (ControlMessage) -> Void)?
     var onStatusChange: (@Sendable (_ installed: Bool, _ reachable: Bool) -> Void)?
 
     func activate() {
@@ -54,7 +55,14 @@ final class PhoneBridge: NSObject, WCSessionDelegate, @unchecked Sendable {
     func sessionWatchStateDidChange(_ session: WCSession) { reportStatus() }
 
     func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {
-        guard let m = WCKey.message(from: message) else { return }
-        onMessage?(m)
+        if let m = WCKey.message(from: message) {
+            onMessage?(m)
+        } else if let c = ControlMessage(dictionary: message) {
+            onControl?(c)
+        }
+    }
+
+    func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any] = [:]) {
+        if let c = ControlMessage(dictionary: userInfo) { onControl?(c) }
     }
 }

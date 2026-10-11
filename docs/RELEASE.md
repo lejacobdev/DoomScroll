@@ -95,3 +95,31 @@ Or run either workflow manually from the Actions tab (`workflow_dispatch`).
 TestFlight builds need an export compliance answer and internal/external
 tester setup in App Store Connect the first time — `ITSAppUsesNonExemptEncryption: false`
 in `project.yml` answers the encryption question automatically.
+
+## App Store / TestFlight checklist
+
+Things the code cannot do for you:
+
+- [ ] **Privacy policy URL.** App Store Connect requires one. Host
+      `docs/PRIVACY.md` (for example with GitHub Pages) and paste the URL.
+- [ ] **Privacy nutrition label:** choose "Data Not Collected".
+- [ ] **Screenshots:** 6.9-inch iPhone and 46/49 mm Apple Watch sets.
+- [ ] **App Review notes** (important, paste this): "DoomScroll controls a
+      Mac from an Apple Watch. The Watch app starts an HKWorkoutSession
+      solely to remain active with the wrist lowered; it reads and saves no
+      health data. A companion Mac app (distributed separately via Developer
+      ID, not the Mac App Store) is required for full functionality. A demo
+      is available on request."
+- [ ] **Reviewer access:** the app is only useful with the Mac companion.
+      Link the notarized Mac build from the review notes so the reviewer can
+      test, otherwise expect a "can't verify functionality" rejection.
+- [ ] **Internal TestFlight first.** Internal testers skip Beta App Review;
+      use it to tune the wrist feel on real hardware before external testing.
+
+## Known risk: HealthKit keep-alive and App Review
+
+Using a workout session purely to keep the app alive is a pattern Apple has
+rejected before. If review pushes back, the fallback is a
+`WKExtendedRuntimeSession` (physical therapy type), which needs no HealthKit
+entitlement but limits sessions in length. The keep-alive is isolated in
+`Sources/Watch/KeepAliveSession.swift`, so swapping it is a one-file change.
