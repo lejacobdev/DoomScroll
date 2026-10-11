@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="fade" gradientUnits="userSpaceOnUse" x1="190" y1="760" x2="700" y2="300">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.05"/><stop offset="1" stop-color="#FFFFFF" stop-opacity="1"/>
+    </linearGradient>
+    <linearGradient id="fade2" gradientUnits="userSpaceOnUse" x1="330" y1="780" x2="620" y2="480">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.04"/><stop offset="1" stop-color="#FFFFFF" stop-opacity="0.5"/>
+    </linearGradient>
+  </defs>
+  <path d="M190 760 C190 450 410 300 750 300" fill="none" stroke="url(#fade)" stroke-width="88" stroke-linecap="round"/>
+  <path d="M338 790 C338 610 450 480 640 480" fill="none" stroke="url(#fade2)" stroke-width="64" stroke-linecap="round"/>
+</svg>
