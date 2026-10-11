@@ -1,23 +1,63 @@
 {
   "fill": {
     "linear-gradient": [
-      "extended-srgb:1.00,0.55,0.18,1.00000",
-      "extended-srgb:0.93,0.14,0.42,1.00000"
+      "extended-srgb:0.36,0.30,1.00,1.00000",
+      "extended-srgb:0.00,0.72,1.00,1.00000"
     ],
-    "orientation": { "start": { "x": 0.5, "y": 0 }, "stop": { "x": 0.5, "y": 1 } }
+    "orientation": {
+      "start": {
+        "x": 0.5,
+        "y": 0
+      },
+      "stop": {
+        "x": 0.5,
+        "y": 1
+      }
+    }
   },
   "groups": [
     {
       "layers": [
-        { "glass": true, "image-name": "thumb.svg", "name": "thumb",
-          "position": { "scale": 1, "translation-in-points": [0, 0] } },
-        { "glass": false, "image-name": "track.svg", "name": "track",
-          "position": { "scale": 1, "translation-in-points": [0, 0] } }
+        {
+          "glass": true,
+          "image-name": "dot.svg",
+          "name": "dot",
+          "position": {
+            "scale": 1,
+            "translation-in-points": [
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "glass": false,
+          "image-name": "rings.svg",
+          "name": "rings",
+          "position": {
+            "scale": 1,
+            "translation-in-points": [
+              0,
+              0
+            ]
+          }
+        }
       ],
-      "shadow": { "kind": "neutral", "opacity": 0.4 },
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.4
+      },
       "specular": true,
-      "translucency": { "enabled": true, "value": 0.35 }
+      "translucency": {
+        "enabled": true,
+        "value": 0.35
+      }
     }
   ],
-  "supported-platforms": { "circles": ["watchOS"], "squares": "shared" }
+  "supported-platforms": {
+    "circles": [
+      "watchOS"
+    ],
+    "squares": "shared"
+  }
 }
