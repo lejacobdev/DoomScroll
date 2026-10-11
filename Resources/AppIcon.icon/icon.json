@@ -19,21 +19,9 @@
     {
       "layers": [
         {
-          "glass": false,
-          "image-name": "details.svg",
-          "name": "details",
-          "position": {
-            "scale": 1,
-            "translation-in-points": [
-              0,
-              0
-            ]
-          }
-        },
-        {
           "glass": true,
-          "image-name": "body.svg",
-          "name": "mouse body",
+          "image-name": "mouse.svg",
+          "name": "mouse",
           "position": {
             "scale": 1,
             "translation-in-points": [
