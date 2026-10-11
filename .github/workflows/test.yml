@@ -1,32 +1,41 @@
-# PR validation: generates the project and compiles both targets for the
-# simulator. Faster than a device build and catches Swift errors without
-# needing any signing.
-name: Validate build
+# Runs on every PR and push: fast feedback with no signing required.
+name: Validate
 
 on:
   pull_request:
     branches: [main]
+  push:
+    branches: [main]
   workflow_dispatch:
 
+concurrency:
+  group: validate-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  build-simulator:
+  unit-tests:
+    name: ScrollCore unit tests
     runs-on: macos-15
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - run: swift test --package-path Packages/ScrollCore
 
-      - name: Install XcodeGen
-        run: brew install xcodegen
-
-      - name: Generate Xcode project
-        run: xcodegen generate
-
-      - name: Build for iOS Simulator
+  build-simulators:
+    name: Build for Simulator (no signing)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - run: brew install xcodegen
+      - run: xcodegen generate
+      - name: Build iOS + watchOS app (embedded)
         run: |
           xcodebuild build \
-            -project DoomScroll.xcodeproj \
-            -scheme DoomScroll \
-            -configuration Debug \
-            -destination 'generic/platform=iOS Simulator' \
-            -derivedDataPath build \
+            -project DoomScroll.xcodeproj -scheme DoomScroll -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO
+      - name: Build Mac app
+        run: |
+          xcodebuild build \
+            -project DoomScroll.xcodeproj -scheme DoomScrollMac -configuration Debug \
+            -destination 'platform=macOS' -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO

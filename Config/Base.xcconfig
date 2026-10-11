@@ -1,0 +1,15 @@
+// Shared defaults. Do NOT edit for personal values: put those in Config/Local.xcconfig (git-ignored).
+
+// Your 10-character Apple Developer Team ID (developer.apple.com > Membership details).
+DEVELOPMENT_TEAM =
+
+// Reverse-DNS prefix for the three bundle IDs. Must be unique to you.
+//   iOS:   $(DOOMSCROLL_BUNDLE_PREFIX)
+//   Watch: $(DOOMSCROLL_BUNDLE_PREFIX).watchkitapp
+//   Mac:   $(DOOMSCROLL_BUNDLE_PREFIX).mac
+DOOMSCROLL_BUNDLE_PREFIX = dev.lejacob.doomscroll
+
+MARKETING_VERSION = 1.0.0
+CURRENT_PROJECT_VERSION = 1
+
+#include? "Local.xcconfig"

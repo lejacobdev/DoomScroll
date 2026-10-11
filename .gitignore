@@ -23,3 +23,14 @@ signing/
 
 # OS noise
 .DS_Store
+
+# Generated / local
+*.xcodeproj
+Config/Local.xcconfig
+Generated/
+.build/
+*.p8
+*.p12
+*.mobileprovision
+*.ipa
+*.xcarchive

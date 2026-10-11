@@ -1,130 +1,78 @@
-# Known Limitations
+# What this actually does, and what it can't
 
-This document is the honest version of what this project can and cannot do.
-Read it before filing a bug that something "doesn't scroll."
+## System-wide scroll, by platform
 
-## 1. System-wide scrolling of other apps is impossible — by design of iOS
-
-The original goal was Vision Pro-style air scrolling of *any* app (Safari,
-Mail, TikTok, …). On stock iOS this cannot be built with public APIs, and no
-amount of cleverness changes that:
-
-- **Sandboxing.** A third-party app has no handle on another process's UI.
-  There is no window server access, no view hierarchy of other apps, nothing
-  to send a scroll to.
-- **No `AXUIElement` on iOS.** The accessibility API that lets a Mac app drive
-  other apps (`AXUIElementPerformAction`, etc.) is macOS-only. It has no iOS
-  counterpart for third parties.
-- **`UIAccessibility` is in-process.** `accessibilityScroll(_:)`,
-  `UIAccessibilityCustomAction`, and accessibility notifications only reach
-  elements inside *your own* app. They are how your app describes itself to
-  VoiceOver — not a remote control for other apps.
-- **No HID/IOKit event injection.** Synthesizing scroll-wheel or touch events
-  system-wide requires private frameworks (`IOHIDEvent`,
-  `BackBoardServices`) and entitlements Apple only grants to itself. Private
-  API also fails at signing/installation for sideloaded builds and is a
-  non-starter.
-
-**What this app does instead:** it scrolls its own content — a demo feed and
-a built-in `WKWebView` browser. The browser is the practical workaround: you
-can air-scroll *any website*, just inside DoomScroll rather than inside
-Safari.
-
-Routes that genuinely achieve system-wide control, all out of scope here:
-jailbreak tweaks, Apple's own AssistiveTouch/Switch Control (not scriptable by
-apps), or driving a Mac's `AXUIElement` API while mirroring the iPhone
-(macOS Sequoia iPhone Mirroring — requires a Mac, which this project avoids).
-
-## 2. Which surfaces scroll, concretely
-
-| Surface | Works? | How |
+| Target | Works? | How |
 |---|---|---|
-| DoomScroll demo feed (SwiftUI `ScrollView`/`List`) | ✅ | `UIScrollView.setContentOffset` |
-| DoomScroll in-app browser (any website) | ✅ | WKWebView's internal scroll view; JS `window.scrollBy` fallback for nested iframes |
-| Custom in-app containers without a scroll view | ⚠️ page-at-a-time | in-process `accessibilityScroll(_:)` fallback |
-| Safari, Mail, TikTok, any other app | ❌ | impossible with public API (see §1) |
-| Home screen / system UI | ❌ | same |
+| **Mac, any app** | Yes | The Mac helper posts real `CGEvent` scroll-wheel events via `CGEvent.post(tap: .cghidEventTap)`. This reaches every app once you grant Accessibility access — it's the same mechanism a real mouse or trackpad uses, not a hack specific to one app. |
+| **iPhone, via Mac + iPhone Mirroring** | Yes, indirectly | macOS's iPhone Mirroring feature renders your iPhone's screen in a Mac window and forwards input to it. The Mac helper finds that window (`CGWindowListCopyWindowInfo`) and posts scroll events into its center point. This scrolls whatever's on your iPhone screen, in any app — but only while iPhone Mirroring is open, and only while the Mac is nearby. |
+| **iPhone directly, any app, no Mac** | **No — not possible on stock iOS** | iOS's app sandbox gives a third-party app zero access to another process's UI. There is no public API for one app to scroll another. `AXUIElement` (what makes this possible on macOS) doesn't exist on iOS. `UIAccessibility` actions are strictly in-process. IOKit/HID event injection is private API; apps using it are rejected from the App Store and from TestFlight review. This is a sandboxing boundary, not a missing feature — no amount of entitlements or paid developer account changes it. |
 
-## 3. The Double Tap gesture is only partially available to apps
+If you want hands-free scrolling with no Mac involved, in the current state
+of iOS that is not achievable with code that can be distributed through
+TestFlight or the App Store. The Mac + iPhone Mirroring path is the closest
+real equivalent — same "scroll my phone without touching it" outcome, with
+the Mac doing the part iOS refuses to let an app do.
 
-The system Double Tap gesture (index finger + thumb) is reserved by watchOS.
-The only public hook is `.handGestureShortcut(.primaryAction)` (watchOS 11+),
-which lets Double Tap press one designated button while your app is frontmost.
-That is exactly how the Air Scroll toggle is wired.
+## Gesture
 
-On watchOS 10 there is no API at all, so this app ships an accelerometer-based
-double-tap detector (`DoubleTapDetector`). It is a heuristic: expect occasional
-missed or phantom detections, and tune `tapThreshold` if needed. The on-screen
-button always works.
+- **watchOS 11+ (Series 9, Ultra 2, and later):** the system **Double Tap**
+  gesture is wired via `.handGestureShortcut(.primaryAction)`. This is
+  Apple's real hardware gesture — the same one used for answering calls —
+  not an approximation.
+- **watchOS 10 (no system Double Tap):** `DoubleTapDetector` falls back to
+  reading raw accelerometer peaks and recognizing two taps in quick
+  succession. Less reliable than the system gesture, especially with the
+  wrist in motion; tune `tapThreshold`/`minInterval`/`maxInterval` in
+  `Sources/Watch/DoubleTapDetector.swift` if it's over- or under-firing.
+- No touch is used anywhere in the control loop once scroll mode is active —
+  wrist motion alone drives scrolling, per your request.
 
-## 4. Streaming stops when the wrist drops
+## Control feel
 
-watchOS suspends third-party apps aggressively. When the screen sleeps or the
-app leaves the foreground, motion updates and WatchConnectivity streaming stop
-(this is also deliberate: it prevents phantom scrolling and battery drain).
-Keep the Watch app frontmost while scrolling. `WKExtendedRuntimeSession` types
-don't cover this use case for meaningful extra time.
+Two styles, switchable in the iPhone app's Settings:
 
-## 5. WatchConnectivity is best-effort
+- **Flick** (default): snap your wrist like flicking a page; the content
+  coasts and decelerates, like a real trackpad fling. A slow, deliberate
+  rotation is deliberately *not* recognized as a flick (see
+  `WristMotionProcessor.swift` — `flickMaxDuration`), so resting your wrist
+  tilted doesn't accidentally fire one.
+- **Tilt**: hold your wrist tilted to scroll continuously, like a joystick;
+  return to neutral to stop. Has a deadzone so a relaxed wrist doesn't drift.
 
-`sendMessage` at 20 Hz generally holds up over Bluetooth, but frames drop and
-stalls happen. Mitigations built in: every command carries a timestamp and the
-iPhone drops anything older than 0.5 s; the iPhone ends the session after 1 s
-of silence in case the final "stop" message is lost; delta timing is derived
-from real inter-arrival times so dropped frames scroll farther, not slower.
+Both run entirely from `CMDeviceMotion.attitude`/`rotationRate` — pitch
+drives vertical scroll, roll drives horizontal, yaw is ignored so turning
+your head or torso while wearing the watch doesn't inject noise.
 
-## 6. Sideloading the Watch companion is the weakest link
+## Reliability details worth knowing
 
-This is the biggest *practical* risk of the whole project:
+- **Link priority:** the Watch prefers talking to the Mac directly over Wi-Fi
+  (Bonjour discovery + a persistent TCP connection). If it can't find the
+  Mac, it relays through the iPhone over WatchConnectivity instead — slightly
+  higher latency, but it keeps working if the Watch and Mac are briefly on
+  different networks while the iPhone bridges both.
+- **Authentication:** every message is HMAC-SHA256 signed with a key
+  established once by scanning a QR code shown in the Mac app. An
+  unauthenticated device on the same Wi-Fi network cannot send scroll
+  commands — the server verifies the MAC before accepting anything.
+- **Replay/staleness:** messages carry a sequence number and timestamp; the
+  Mac drops anything out of order or older than its skew window. A recorded
+  and replayed network capture can't be used to scroll your Mac later.
+- **Dead-link safety:** continuous scrolling has a 250ms timeout — if the
+  Watch app is killed or Wi-Fi drops mid-scroll, the Mac stops scrolling
+  within a quarter second rather than coasting forever.
+- **HealthKit workout session:** the Watch app starts (but never saves) a
+  workout session while scroll mode is active, purely to stay alive and
+  keep motion updates flowing with your wrist down. See the App Review note
+  in `KeepAliveSession.swift` before shipping publicly — Apple reviews
+  HealthKit usage closely, and a "fake" workout for keep-alive purposes may
+  need a clearer in-app explanation to pass review smoothly.
 
-- **AltStore PAL will not work for this app at all.** PAL is a marketplace,
-  not a self-signing tool: per AltStore's own developer docs, getting *any*
-  app into a PAL-installable source — even your own private one — requires
-  submitting it through App Store Connect with a **paid** Apple Developer
-  Program membership and passing Apple **Notarization**, plus signing the
-  Alternative EU Terms Addendum. There is no free-Apple-ID path inside PAL.
-  PAL is also gated to Apple IDs with an **EU account region** (not the UK),
-  regardless of physical location. If you don't have a paid Developer account,
-  skip PAL entirely.
-- **Use [SideStore](https://sidestore.io) instead** (or AltStore Classic).
-  Both sign arbitrary `.ipa` files on-device with a **free** Apple ID —
-  SideStore's "Import IPA" is the direct equivalent of what the original plan
-  assumed PAL could do. SideStore needs a computer only once, to generate a
-  pairing file; after that it re-signs in the background over a local
-  WireGuard tunnel as long as your iPhone periodically shares a network with
-  where that tunnel runs. AltStore Classic works the same way but needs
-  AltServer running on a computer for the initial install *and* every 7-day
-  refresh.
-- **AltStore / SideStore remap bundle IDs** when signing with a free Apple ID.
-  The Watch↔iPhone pairing depends on `WKCompanionAppBundleIdentifier`
-  matching the iOS app's bundle ID exactly, and remapping breaks that link, so
-  the Watch app typically won't install from the Watch app gallery.
-- Free-account provisioning for watchOS through sideloaders is unreliable in
-  general; results vary by tool and version.
-- **The only fully supported free path** for getting the Watch app onto a
-  physical watch is a one-time deploy from Xcode with a free Apple ID — from
-  any borrowed or cloud Mac (e.g. a MacinCloud/MacStadium trial hour). After
-  that, the 7-day re-sign only affects launching, and rebuilds are still CI's
-  job.
+## Accessibility permission (Mac)
 
-The iOS app alone sideloads fine everywhere and is fully usable with the Watch
-app installed by any means.
-
-## 7. Free Apple ID constraints
-
-- Apps expire after **7 days** and must be re-signed (AltStore/SideStore
-  automate this on-device).
-- Maximum **3 sideloaded apps** installed at once.
-- **10 App IDs per week** — bundle-ID churn from experiments can hit this cap.
-- No push notifications, iCloud, or App Groups. Nothing in this project needs
-  them: WatchConnectivity requires no special entitlements.
-
-## 8. Linux builds (xtool) cover only half the project
-
-[xtool](https://github.com/xtool-org/xtool) genuinely cross-compiles iOS apps
-on Linux — but it does **not support watchOS targets**, and it needs the
-Darwin SDK extracted from a Xcode `.xip` that Apple's license forbids
-redistributing (so no public Docker image can include it). That's why the
-primary "no Mac required" pipeline runs on GitHub's **free hosted macOS
-runners** instead: you still never own, rent, or touch a Mac — GitHub does.
-The Docker/xtool path is kept as an experimental, iOS-only job.
+macOS will not let any app post synthetic input events without explicit
+user approval. First launch, the Mac app's menu shows a prompt to open
+System Settings → Privacy & Security → Accessibility and enable DoomScroll.
+This is a one-time, per-Mac step that cannot be automated or skipped —
+Apple does not provide a way to pre-approve this from a provisioning
+profile or MDM payload for a Developer-ID-distributed app.
