@@ -32,8 +32,20 @@
         },
         {
           "glass": false,
-          "image-name": "cable.svg",
+          "image-name": "cable.png",
           "name": "cable",
+          "position": {
+            "scale": 1,
+            "translation-in-points": [
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "glass": false,
+          "image-name": "track.svg",
+          "name": "slider track",
           "position": {
             "scale": 1,
             "translation-in-points": [
