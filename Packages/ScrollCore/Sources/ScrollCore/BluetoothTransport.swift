@@ -14,6 +14,8 @@ public enum BluetoothTransport {
 }
 
 // MARK: - Mac side (peripheral)
+// watchOS can only be a Bluetooth central, so the server is not compiled there.
+#if !os(watchOS)
 
 public final class BLEScrollServer: NSObject, CBPeripheralManagerDelegate, @unchecked Sendable {
     private struct Peer {
@@ -131,6 +133,8 @@ public final class BLEScrollServer: NSObject, CBPeripheralManagerDelegate, @unch
         if peers.count != before { callbacks.onClientCountChanged(peers.count) }
     }
 }
+
+#endif
 
 // MARK: - iPhone / Watch side (central)
 
