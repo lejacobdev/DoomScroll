@@ -88,6 +88,8 @@ final class MacModel: ObservableObject {
             engine.continuous(dx: dx, dy: dy)
         case let .fling(vx, vy):
             engine.fling(vx: vx, vy: vy)
+        case let .nudge(dx, dy):
+            engine.nudge(dx: dx, dy: dy)
         case .ping:
             break
         }

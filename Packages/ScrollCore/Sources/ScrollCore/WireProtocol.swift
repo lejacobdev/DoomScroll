@@ -14,6 +14,8 @@ public enum WireMessage: Equatable, Sendable {
     case scroll(dx: Int, dy: Int)
     /// One-shot impulse in points per second; the receiver applies momentum.
     case fling(vx: Int, vy: Int)
+    /// One-shot scroll distance in points, applied right away (Digital Crown).
+    case nudge(dx: Int, dy: Int)
     case mode(active: Bool, target: ScrollTarget)
     case ping
 
@@ -21,6 +23,7 @@ public enum WireMessage: Equatable, Sendable {
         switch self {
         case .scroll: "scroll"
         case .fling: "fling"
+        case .nudge: "nudge"
         case .mode: "mode"
         case .ping: "ping"
         }
@@ -30,6 +33,7 @@ public enum WireMessage: Equatable, Sendable {
         switch self {
         case let .scroll(dx, dy): (dx, dy)
         case let .fling(vx, vy): (vx, vy)
+        case let .nudge(dx, dy): (dx, dy)
         case let .mode(active, target): (active ? 1 : 0, target.rawValue)
         case .ping: (0, 0)
         }
@@ -85,6 +89,7 @@ public struct MessageAuthenticator: Sendable {
         switch env.type {
         case "scroll": return .scroll(dx: env.a, dy: env.b)
         case "fling": return .fling(vx: env.a, vy: env.b)
+        case "nudge": return .nudge(dx: env.a, dy: env.b)
         case "mode":
             guard let target = ScrollTarget(rawValue: env.b) else { throw WireError.unknownType }
             return .mode(active: env.a != 0, target: target)

@@ -33,6 +33,14 @@ final class ScrollEngine {
         }
     }
 
+    /// Applies a scroll distance (points) right away, as the Digital Crown sends.
+    func nudge(dx: Int, dy: Int) {
+        queue.async {
+            self.scroller.nudge(dx: Double(dx), dy: Double(dy))
+            self.ensureTimer()
+        }
+    }
+
     func stopAll() {
         queue.async {
             self.scroller.stop()

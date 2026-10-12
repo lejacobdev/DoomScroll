@@ -459,36 +459,76 @@ import Network
 }
 
 @Suite struct CrownTests {
-    @Test func firstTurnScrollsInProportion() {
+    @Test func firstTurnSendsItsDistanceImmediately() {
         var c = CrownScroller()
-        #expect(c.rotate(by: 0.1, at: 0, sensitivity: 1, reversed: false) == .scroll(dx: 0, dy: 500))
+        #expect(c.rotate(by: 0.1, at: 0, sensitivity: 1, reversed: false) == .nudge(dx: 0, dy: 25))
     }
 
-    @Test func turnsInsideTheIntervalAreSummed() {
+    @Test func turnsInsideTheIntervalAreSummedNotLost() {
         var c = CrownScroller()
         _ = c.rotate(by: 0.1, at: 0, sensitivity: 1, reversed: false)
         #expect(c.rotate(by: 0.1, at: 0.01, sensitivity: 1, reversed: false) == nil)
-        #expect(c.rotate(by: 0.1, at: 0.06, sensitivity: 1, reversed: false) == .scroll(dx: 0, dy: 833))
+        #expect(c.rotate(by: 0.1, at: 0.04, sensitivity: 1, reversed: false) == .nudge(dx: 0, dy: 50))
     }
 
     @Test func reversedAndSensitivityApply() {
         var a = CrownScroller()
-        #expect(a.rotate(by: 0.1, at: 0, sensitivity: 1, reversed: true) == .scroll(dx: 0, dy: -500))
+        #expect(a.rotate(by: 0.1, at: 0, sensitivity: 1, reversed: true) == .nudge(dx: 0, dy: -25))
         var b = CrownScroller()
-        #expect(b.rotate(by: 0.1, at: 0, sensitivity: 2, reversed: false) == .scroll(dx: 0, dy: 1000))
+        #expect(b.rotate(by: 0.1, at: 0, sensitivity: 2, reversed: false) == .nudge(dx: 0, dy: 50))
     }
 
-    @Test func speedIsCapped() {
+    @Test func distancePerMessageIsCapped() {
         var c = CrownScroller()
-        #expect(c.rotate(by: 100, at: 0, sensitivity: 1, reversed: false) == .scroll(dx: 0, dy: 9000))
+        #expect(c.rotate(by: 100, at: 0, sensitivity: 1, reversed: false) == .nudge(dx: 0, dy: 600))
     }
 
-    @Test func stopIsSentOnceAfterMoving() {
+    @Test func idleFlushesWhateverIsStillWaiting() {
         var c = CrownScroller()
-        #expect(c.idle() == nil)
         _ = c.rotate(by: 0.1, at: 0, sensitivity: 1, reversed: false)
-        #expect(c.idle() == .scroll(dx: 0, dy: 0))
+        #expect(c.rotate(by: 0.2, at: 0.01, sensitivity: 1, reversed: false) == nil)
+        #expect(c.idle() == .nudge(dx: 0, dy: 50))
         #expect(c.idle() == nil)
+    }
+
+    @Test func aTinyLeftoverIsDroppedWhenTheCrownStops() {
+        var c = CrownScroller()
+        #expect(c.rotate(by: 0.001, at: 0, sensitivity: 1, reversed: false) == nil)
+        #expect(c.idle() == nil)
+        #expect(c.rotate(by: 0.1, at: 1, sensitivity: 1, reversed: false) == .nudge(dx: 0, dy: 25))
+    }
+
+    @Test func nudgeSurvivesTheWireAndTheWatchRelay() throws {
+        let auth = MessageAuthenticator(key: Data(repeating: 7, count: 32))
+        let env = auth.seal(.nudge(dx: 0, dy: -40), seq: 1, nowMs: 1_000)
+        #expect(try auth.open(env) == .nudge(dx: 0, dy: -40))
+        #expect(WCKey.message(from: WCKey.dictionary(for: .nudge(dx: 3, dy: 25))) == .nudge(dx: 3, dy: 25))
+    }
+
+    @Test func macAppliesANudgeFullyAndThenStopsAtOnce() {
+        var m = MomentumScroller()
+        m.nudge(dx: 0, dy: 100)
+        #expect(!m.isIdle)
+        var total = 0
+        var firstTick = 0
+        for i in 0..<120 {
+            let d = m.tick(dt: 1.0 / 120, at: Double(i) / 120)
+            if i == 0 { firstTick = d.dy }
+            total += d.dy
+        }
+        // Whole pixels only: under one point stays in the sub-pixel remainder.
+        #expect(abs(total - 100) <= 1)
+        #expect(firstTick > 0)
+        #expect(m.isIdle)
+    }
+
+    @Test func nudgeDoesNotKeepScrollingAfterItsDistanceIsUsed() {
+        var m = MomentumScroller()
+        m.nudge(dx: 0, dy: -60)
+        var total = 0
+        for i in 0..<240 { total += m.tick(dt: 1.0 / 120, at: Double(i) / 120).dy }
+        #expect(abs(total + 60) <= 1)
+        #expect(m.tick(dt: 1.0 / 120, at: 3).dy == 0)
     }
 
     @Test func crownSettingDefaultsOffAndSurvivesJSON() throws {
@@ -506,6 +546,14 @@ import Network
         #expect(p.handle(.fling(vx: 0, vy: 1500), at: 0) == 1)
         #expect(p.handle(.fling(vx: 0, vy: 1500), at: 0.2) == 0)
         #expect(p.handle(.fling(vx: 0, vy: -1500), at: 0.6) == -1)
+    }
+
+    @Test func crownNudgesStepOnceEnoughDistanceBuilds() {
+        var p = PageStepper()
+        #expect(p.handle(.nudge(dx: 0, dy: 100), at: 0) == 0)
+        #expect(p.handle(.nudge(dx: 0, dy: 100), at: 0.03) == 1)
+        #expect(p.handle(.nudge(dx: 0, dy: 100), at: 0.1) == 0)
+        #expect(p.handle(.nudge(dx: 0, dy: -200), at: 0.7) == -1)
     }
 
     @Test func weakAndSidewaysFlicksAreIgnored() {

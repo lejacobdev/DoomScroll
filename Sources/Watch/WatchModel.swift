@@ -104,7 +104,7 @@ final class WatchModel: ObservableObject {
         }
         crownStopTask?.cancel()
         crownStopTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: 150_000_000)
+            try? await Task.sleep(nanoseconds: 45_000_000)
             guard !Task.isCancelled else { return }
             self?.crownStopped()
         }

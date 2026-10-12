@@ -40,6 +40,12 @@ public struct PageStepper: Sendable {
             guard abs(accumulated) >= distancePerStep else { return 0 }
             return fire(accumulated > 0 ? 1 : -1, at: t)
 
+        case let .nudge(_, dy):
+            guard t >= blockedUntil else { return 0 }
+            accumulated += Double(dy)
+            guard abs(accumulated) >= distancePerStep else { return 0 }
+            return fire(accumulated > 0 ? 1 : -1, at: t)
+
         case .mode:
             accumulated = 0
             lastScrollAt = nil

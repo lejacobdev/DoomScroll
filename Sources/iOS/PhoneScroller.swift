@@ -51,6 +51,9 @@ final class PhoneScroller: ObservableObject {
         case let .fling(vx, vy):
             scroller.fling(vx: Double(vx), vy: Double(vy))
             startLinkIfNeeded()
+        case let .nudge(dx, dy):
+            scroller.nudge(dx: Double(dx), dy: Double(dy))
+            startLinkIfNeeded()
         case let .mode(active, _):
             watchActive = active
             // Release a held tilt but let a fling coast to a stop.

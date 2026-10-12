@@ -1,43 +1,44 @@
 import Foundation
 
-/// Turns Digital Crown rotation into scroll commands.
+/// Turns Digital Crown rotation into scroll distance.
 ///
 /// The crown reports small rotation deltas many times a second. Sending each one
 /// would flood the link, so deltas are summed and sent at most every
-/// `sendInterval` as a continuous velocity. That tracks the crown 1:1 (distance
-/// is proportional to rotation) and stops as soon as the crown does.
+/// `sendInterval` as a distance. The receiver applies that distance right away,
+/// so scrolling starts with the first turn and stops with the last one: there is
+/// no speed to hold or release, and no distance is lost.
 public struct CrownScroller: Sendable {
     /// Scroll points per unit of crown rotation, before the sensitivity setting.
     public var pointsPerUnit: Double = 250
-    public var sendInterval: TimeInterval = 0.05
-    public var maxSpeed: Double = 9000
+    public var sendInterval: TimeInterval = 0.03
+    /// Largest distance in one message, so a fast spin can't jump a huge amount.
+    public var maxPointsPerMessage = 600
 
     private var pending = 0.0
     private var lastSend: TimeInterval = -.infinity
-    private var moving = false
 
     public init() {}
 
     /// Feed one crown delta. Returns a scroll to send now, or nil if one isn't due yet.
     public mutating func rotate(by delta: Double, at t: TimeInterval,
                                 sensitivity: Double, reversed: Bool) -> WireMessage? {
-        pending += reversed ? -delta : delta
+        pending += (reversed ? -delta : delta) * pointsPerUnit * sensitivity
         guard t - lastSend >= sendInterval else { return nil }
-        let dt = moving ? min(max(t - lastSend, sendInterval), 0.2) : sendInterval
-        let speed = pending * pointsPerUnit * sensitivity / dt
-        let v = Int(max(-maxSpeed, min(maxSpeed, speed)).rounded())
-        guard v != 0 else { return nil }
-        pending = 0
-        lastSend = t
-        moving = true
-        return .scroll(dx: 0, dy: v)
+        return take(at: t)
     }
 
-    /// Call when the crown has stopped turning. Returns the stop to send, once.
+    /// Call shortly after the crown stops turning. Sends whatever distance is still waiting.
     public mutating func idle() -> WireMessage? {
-        guard moving else { return nil }
-        moving = false
-        pending = 0
-        return .scroll(dx: 0, dy: 0)
+        defer { pending = 0 }
+        return take(at: lastSend)
+    }
+
+    private mutating func take(at t: TimeInterval) -> WireMessage? {
+        let limit = Double(maxPointsPerMessage)
+        let whole = max(-limit, min(limit, pending)).rounded(.towardZero)
+        guard whole != 0 else { return nil }
+        pending -= whole
+        lastSend = t
+        return .nudge(dx: 0, dy: Int(whole))
     }
 }

@@ -77,7 +77,7 @@ public struct ScrollSettings: Codable, Equatable, Sendable {
 public enum WCKey {
     public static let settings = "settings"       // JSON of ScrollSettings (application context)
     public static let pairing = "pairing"         // pairing URL string (application context)
-    public static let type = "t"                  // live message: "scroll" | "fling" | "mode" | "ping"
+    public static let type = "t"                  // live message: "scroll" | "fling" | "nudge" | "mode" | "ping"
     public static let a = "a"
     public static let b = "b"
 
@@ -87,6 +87,7 @@ public enum WCKey {
         switch message {
         case let .scroll(dx, dy): (t, a, b) = ("scroll", dx, dy)
         case let .fling(vx, vy): (t, a, b) = ("fling", vx, vy)
+        case let .nudge(dx, dy): (t, a, b) = ("nudge", dx, dy)
         case let .mode(active, target): (t, a, b) = ("mode", active ? 1 : 0, target.rawValue)
         case .ping: (t, a, b) = ("ping", 0, 0)
         }
@@ -100,6 +101,7 @@ public enum WCKey {
         switch t {
         case "scroll": return .scroll(dx: a, dy: b)
         case "fling": return .fling(vx: a, vy: b)
+        case "nudge": return .nudge(dx: a, dy: b)
         case "mode":
             guard let target = ScrollTarget(rawValue: b) else { return nil }
             return .mode(active: a != 0, target: target)

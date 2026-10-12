@@ -16,11 +16,24 @@ public struct MomentumScroller: Sendable {
     private var lastContinuousAt: TimeInterval = -.infinity
     private var carryX = 0.0
     private var carryY = 0.0
+    /// Distance from `nudge` that has not been applied yet.
+    private var queuedX = 0.0
+    private var queuedY = 0.0
+    /// How quickly queued nudge distance is applied (time constant, seconds).
+    public var nudgeSmoothing: TimeInterval = 0.03
 
     public init() {}
 
     public var isIdle: Bool {
         abs(momentumX) < stopSpeed && abs(momentumY) < stopSpeed && contX == 0 && contY == 0
+            && queuedX == 0 && queuedY == 0
+    }
+
+    /// Adds scroll distance (points) to apply right away, spread over a few
+    /// milliseconds so it looks smooth. Stops the moment the distance is used up.
+    public mutating func nudge(dx: Double, dy: Double) {
+        queuedX = max(-20_000, min(20_000, queuedX + dx))
+        queuedY = max(-20_000, min(20_000, queuedY + dy))
     }
 
     public mutating func setContinuous(dx: Double, dy: Double, at t: TimeInterval) {
@@ -38,6 +51,7 @@ public struct MomentumScroller: Sendable {
         momentumX = 0; momentumY = 0
         contX = 0; contY = 0
         carryX = 0; carryY = 0
+        queuedX = 0; queuedY = 0
     }
 
     /// Advance by `dt` seconds ending at time `t`; returns whole-pixel deltas.
@@ -54,6 +68,16 @@ public struct MomentumScroller: Sendable {
 
         carryX += (momentumX + contX) * dt
         carryY += (momentumY + contY) * dt
+
+        let share = 1 - exp(-dt / nudgeSmoothing)
+        var stepX = queuedX * share
+        var stepY = queuedY * share
+        if abs(queuedX - stepX) < 0.5 { stepX = queuedX }
+        if abs(queuedY - stepY) < 0.5 { stepY = queuedY }
+        queuedX -= stepX
+        queuedY -= stepY
+        carryX += stepX
+        carryY += stepY
         let ix = Int(carryX.rounded(.towardZero))
         let iy = Int(carryY.rounded(.towardZero))
         carryX -= Double(ix)
