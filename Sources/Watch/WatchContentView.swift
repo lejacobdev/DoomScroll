@@ -14,6 +14,43 @@ extension View {
     }
 }
 
+extension View {
+    /// Opts a control out of Double Tap, so it only responds to a real press.
+    /// watchOS otherwise offers a screen's prominent button to Double Tap.
+    @ViewBuilder
+    func pressOnly() -> some View {
+        if #available(watchOS 11.0, *) {
+            self.handGestureShortcut(.primaryAction, isEnabled: false)
+        } else {
+            self
+        }
+    }
+}
+
+/// Big round button in the style of the main one, used for setup and calibration.
+private struct RoundActionButton: View {
+    let title: String
+    let symbol: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            ZStack {
+                Circle().fill(Color.white).frame(width: 84, height: 84)
+                Circle().stroke(Color.white.opacity(0.25), lineWidth: 5).frame(width: 96, height: 96)
+                VStack(spacing: 2) {
+                    Image(systemName: symbol).font(.system(size: 24, weight: .semibold))
+                    Text(title).font(.system(.footnote, design: .rounded, weight: .bold))
+                }
+                .foregroundStyle(.black)
+            }
+        }
+        .buttonStyle(.plain)
+        .pressOnly()
+        .accessibilityLabel(title)
+    }
+}
+
 struct WatchContentView: View {
     @ObservedObject var model: WatchModel
 
@@ -39,10 +76,14 @@ struct WatchContentView: View {
 private struct MainView: View {
     @ObservedObject var model: WatchModel
     @State private var crown = 0.0
+    @State private var holdFired = false
 
     var body: some View {
         VStack(spacing: 10) {
-            Button { model.toggleScrollMode() } label: {
+            Button {
+                // A touch-and-hold already started calibration; ignore the release.
+                if holdFired { holdFired = false } else { model.toggleScrollMode() }
+            } label: {
                 ZStack {
                     Circle()
                         .fill(model.scrollMode ? Color.green : Color.white)
@@ -59,9 +100,15 @@ private struct MainView: View {
             .buttonStyle(.plain)
             .disabled(model.settings.style == .phone)
             .opacity(model.settings.style == .phone ? 0.35 : 1)
+            .simultaneousGesture(
+                LongPressGesture(minimumDuration: 0.7).onEnded { _ in
+                    holdFired = true
+                    model.startCalibration()
+                }
+            )
             .doubleTapToToggle()
             .accessibilityLabel(model.scrollMode ? "Stop scrolling" : "Start scrolling")
-            .accessibilityHint("Double-tap your fingers to toggle")
+            .accessibilityHint("Press, or double-tap your fingers, to toggle. Touch and hold to recalibrate.")
 
             VStack(spacing: 2) {
                 Text(model.scrollMode ? "Scrolling" : "Ready")
@@ -70,6 +117,12 @@ private struct MainView: View {
                     .font(.system(.caption2, design: .rounded))
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
+                if !model.scrollMode {
+                    Text("Hold the button to recalibrate")
+                        .font(.system(.caption2, design: .rounded))
+                        .foregroundStyle(.tertiary)
+                        .multilineTextAlignment(.center)
+                }
             }
 
             StatusPill(model: model)
@@ -89,7 +142,7 @@ private struct MainView: View {
         if model.scrollMode {
             return model.settings.style == .flick ? "Flick your wrist" : "Tilt your wrist"
         }
-        return "Double-tap your fingers"
+        return "Press or double-tap"
     }
 }
 
@@ -158,10 +211,9 @@ private struct SetupFlickView: View {
                 .font(.system(.caption2, design: .rounded))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-            Button("Start") { model.startCalibration() }
-                .buttonStyle(.borderedProminent)
-                .tint(.white)
-                .foregroundStyle(.black)
+            RoundActionButton(title: "Start", symbol: "hand.point.up.left.fill") {
+                model.startCalibration()
+            }
         }
         .padding(.horizontal, 8)
     }
@@ -187,8 +239,9 @@ private struct CalibrationView: View {
                     .font(.system(size: 44)).foregroundStyle(.green)
                 Text("All set")
                     .font(.system(.title3, design: .rounded, weight: .bold))
-                Button("Done") { model.finishCalibrationScreen() }
-                    .buttonStyle(.borderedProminent).tint(.white).foregroundStyle(.black)
+                RoundActionButton(title: "Done", symbol: "checkmark") {
+                    model.finishCalibrationScreen()
+                }
             case .idle:
                 EmptyView()
             }
@@ -215,5 +268,6 @@ private struct CalibrationView: View {
             .font(.system(.caption2, design: .rounded))
             .buttonStyle(.plain)
             .foregroundStyle(.secondary)
+            .pressOnly()
     }
 }

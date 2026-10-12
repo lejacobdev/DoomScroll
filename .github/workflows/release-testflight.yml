@@ -15,7 +15,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: testflight
+  group: testflight-uploads
   cancel-in-progress: false
 
 jobs:
