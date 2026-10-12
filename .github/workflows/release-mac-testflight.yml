@@ -1,0 +1,105 @@
+# Archives the Mac menu-bar app with the App Sandbox on and uploads it to
+# App Store Connect / TestFlight for macOS. It uses the same bundle ID as the
+# iPhone app (universal purchase), so the macOS platform must be added to the
+# existing app record once in App Store Connect. See docs/RELEASE.md.
+#
+# The Developer ID build (release-mac.yml) is separate and stays unsandboxed.
+name: Release Mac to TestFlight
+
+on:
+  push:
+    branches: [production-mac-scroll]
+    tags: ["mac-testflight-v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: testflight-mac
+  cancel-in-progress: false
+
+jobs:
+  upload:
+    name: Archive & upload Mac to TestFlight
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - run: brew install xcodegen
+
+      - name: Write Config/Local.xcconfig from secrets
+        run: |
+          cat > Config/Local.xcconfig <<EOT
+          DEVELOPMENT_TEAM = ${{ secrets.APPLE_TEAM_ID }}
+          DOOMSCROLL_BUNDLE_PREFIX = ${{ vars.DOOMSCROLL_BUNDLE_PREFIX }}
+          EOT
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Write App Store Connect API key
+        env:
+          ASC_KEY_P8_BASE64: ${{ secrets.ASC_API_KEY_P8_BASE64 }}
+          ASC_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
+        run: |
+          mkdir -p ~/private_keys
+          echo "$ASC_KEY_P8_BASE64" | base64 -d > ~/private_keys/AuthKey_${ASC_KEY_ID}.p8
+          chmod 600 ~/private_keys/AuthKey_${ASC_KEY_ID}.p8
+
+      # The sandboxed entitlements and the iPhone app's bundle ID are applied
+      # here only, so local and Developer ID builds are unchanged.
+      - name: Archive (sandboxed, automatic signing via App Store Connect API)
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
+        run: |
+          xcodebuild archive \
+            -project DoomScroll.xcodeproj -scheme DoomScrollMac -configuration Release \
+            -destination 'generic/platform=macOS' -archivePath build/DoomScrollMac.xcarchive \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$HOME/private_keys/AuthKey_${ASC_KEY_ID}.p8" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            CODE_SIGN_ENTITLEMENTS=Resources/Mac/DoomScrollMacAppStore.entitlements \
+            PRODUCT_BUNDLE_IDENTIFIER="${{ vars.DOOMSCROLL_BUNDLE_PREFIX }}" \
+            CURRENT_PROJECT_VERSION=${{ github.run_number }}
+
+      - name: Export & upload directly to App Store Connect
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
+        run: |
+          cat > ExportOptionsMacStore.plist <<EOT
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>teamID</key><string>${{ secrets.APPLE_TEAM_ID }}</string>
+          </dict>
+          </plist>
+          EOT
+          xcodebuild -exportArchive \
+            -archivePath build/DoomScrollMac.xcarchive \
+            -exportOptionsPlist ExportOptionsMacStore.plist \
+            -exportPath build/export \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$HOME/private_keys/AuthKey_${ASC_KEY_ID}.p8" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID"
+
+      - name: Clean up API key
+        if: always()
+        run: rm -rf ~/private_keys
+
+      - name: Upload build logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcodebuild-logs-mac
+          path: build/export/*.log
+          if-no-files-found: ignore

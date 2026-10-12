@@ -112,6 +112,7 @@ targets:
         CFBundleDisplayName: DoomScroll
         LSUIElement: true
         LSMinimumSystemVersion: "14.0"
+        LSApplicationCategoryType: public.app-category.utilities
         NSBluetoothAlwaysUsageDescription: DoomScroll listens over Bluetooth as a backup when your iPhone or Apple Watch cannot reach this Mac over Wi-Fi.
         ITSAppUsesNonExemptEncryption: false
         NSLocalNetworkUsageDescription: DoomScroll listens on your local network for scroll commands from your paired iPhone and Apple Watch.
@@ -119,8 +120,9 @@ targets:
     entitlements:
       path: Resources/Mac/DoomScrollMac.entitlements
       properties:
-        # Deliberately NOT sandboxed: posting scroll events into other apps is
-        # impossible from the App Sandbox. Distributed via Developer ID + notarization.
+        # Not sandboxed here: this is the Developer ID build. The TestFlight / Mac
+        # App Store build swaps in Resources/Mac/DoomScrollMacAppStore.entitlements
+        # (sandboxed) from release-mac-testflight.yml.
         com.apple.security.app-sandbox: false
         # Required for Bluetooth under the hardened runtime (notarized builds).
         com.apple.security.device.bluetooth: true

@@ -1,18 +1,33 @@
 # Releasing DoomScroll
 
-Three workflows in `.github/workflows/`:
+Four workflows in `.github/workflows/`:
 
 | Workflow | Trigger | What it does |
 |---|---|---|
 | `test.yml` | every PR / push to `main` | `swift test` on ScrollCore + unsigned Simulator builds. No secrets. |
 | `release-testflight.yml` | every push to `production-mac-scroll`, any `ios-v*` tag, or manual | Archives DoomScroll (+ embedded Watch app), uploads straight to App Store Connect / TestFlight. |
+| `release-mac-testflight.yml` | every push to `production-mac-scroll`, any `mac-testflight-v*` tag, or manual | Archives DoomScrollMac **with the App Sandbox on**, uploads straight to App Store Connect / TestFlight for macOS. |
 | `release-mac.yml` | push tag `mac-v*`, or manual | Archives DoomScrollMac, signs with Developer ID, notarizes, staples, attaches to a GitHub Release. |
 
-The Mac app ships outside the Mac App Store: `project.yml` sets
-`com.apple.security.app-sandbox: false` on purpose, because posting scroll
-events into other apps (`CGEvent` + the Accessibility API) requires living
-outside the sandbox. That's incompatible with Mac App Store distribution, so
-Developer ID + notarization is the only path for this app, not a workaround.
+The Mac app has two builds:
+
+- **Developer ID** (`release-mac.yml`, `DoomScrollMac.entitlements`): unsandboxed,
+  notarized, distributed as a download.
+- **TestFlight / Mac App Store** (`release-mac-testflight.yml`,
+  `DoomScrollMacAppStore.entitlements`): the App Store requires the App
+  Sandbox, so this build is sandboxed (network server/client + Bluetooth).
+  It uses the iPhone app's bundle ID (universal purchase), set only in the
+  workflow, so local builds keep `<prefix>.mac`.
+
+**Not yet verified on a Mac:** whether the sandboxed build can still post
+scroll events into other apps. Posting `CGEvent`s needs the Accessibility
+permission; other sandboxed Mac App Store apps do this, but test it from the
+TestFlight build before relying on it. If it doesn't work, the Developer ID
+build is the fallback.
+
+**One-time App Store Connect step:** open the DoomScroll app record, click
+**+** next to *iOS App* in the left sidebar and add **macOS**. Without it the
+Mac upload is rejected because no macOS platform exists for that bundle ID.
 
 ## One-time setup
 

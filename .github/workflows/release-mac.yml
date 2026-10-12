@@ -1,9 +1,8 @@
 # Builds the Mac menu-bar app, signs it with a Developer ID certificate,
 # notarizes it with Apple, staples the ticket, and attaches the notarized
-# .zip to a GitHub Release. Not distributed through the Mac App Store: the
-# app is intentionally unsandboxed (see project.yml), which the App Store's
-# sandbox requirement does not allow. Requires repository secrets — see
-# docs/RELEASE.md.
+# .zip to a GitHub Release. This is the unsandboxed build; the sandboxed
+# TestFlight build is release-mac-testflight.yml. Requires repository
+# secrets — see docs/RELEASE.md.
 name: Release Mac app
 
 on:
