@@ -386,3 +386,54 @@ import Network
         #expect(back.calibrated)
     }
 }
+
+@Suite struct PhoneGestureTests {
+    private func snap(sign: Double) -> [MotionSample] {
+        var out: [MotionSample] = []
+        var t = 0.0
+        for r in [1.0, 4.0, 6.0, 5.0, 2.5, 0.5, -2.0, -4.0, -3.0, -1.0, 0.0] {
+            out.append(MotionSample(t: t, pitch: 0, roll: 0, pitchRate: sign * r, rollRate: 0))
+            t += 0.02
+        }
+        return out
+    }
+
+    @Test func phoneStyleFlicksLikeTheFlickStyle() {
+        var cfg = ProcessorConfig()
+        cfg.style = .phone
+        let p = WristMotionProcessor(config: cfg)
+        p.begin(neutralPitch: 0, neutralRoll: 0)
+        let outputs = snap(sign: 1).flatMap { p.process($0) }
+        #expect(outputs.count == 1)
+        guard case let .fling(_, vy)? = outputs.first else { Issue.record("no fling"); return }
+        #expect(vy > 2000)
+    }
+
+    @Test func phoneConfigUsesItsOwnSignsAndAlwaysFlicks() {
+        var s = ScrollSettings()
+        s.style = .tilt; s.invertY = false; s.phoneInvertY = true
+        let cfg = s.phoneProcessorConfig
+        #expect(cfg.style == .flick)
+        #expect(cfg.invertY)
+        #expect(!s.processorConfig.invertY)
+    }
+
+    @Test func settingsFromAnOlderBuildStillLoad() throws {
+        let old = #"{"style":"tilt","sensitivity":1.4,"invertX":true,"invertY":false,"target":1,"hapticsEnabled":false}"#
+        let s = try JSONDecoder().decode(ScrollSettings.self, from: Data(old.utf8))
+        #expect(s.style == .tilt)
+        #expect(s.sensitivity == 1.4)
+        #expect(s.invertX)
+        #expect(s.target == .iPhoneMirroring)
+        #expect(!s.hapticsEnabled)
+        #expect(!s.calibrated && !s.phoneCalibrated && !s.phoneInvertX)
+    }
+
+    @Test func phoneSettingsRoundTrip() throws {
+        var s = ScrollSettings()
+        s.style = .phone; s.phoneInvertX = true; s.phoneCalibrated = true
+        let back = try JSONDecoder().decode(ScrollSettings.self, from: JSONEncoder().encode(s))
+        #expect(back == s)
+        #expect(back.style == .phone)
+    }
+}

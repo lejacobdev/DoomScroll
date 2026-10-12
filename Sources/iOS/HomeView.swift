@@ -15,7 +15,7 @@ struct HomeView: View {
 
                     SectionTitle("Gesture")
                     HStack(spacing: 12) {
-                        OptionTile(title: "Flick", subtitle: "Snap to throw the page",
+                        OptionTile(title: "Flick", subtitle: "Snap your wrist",
                                    symbol: "hand.draw", selected: model.settings.style == .flick) {
                             Haptics.select(); model.settings.style = .flick
                         }
@@ -24,6 +24,13 @@ struct HomeView: View {
                             Haptics.select(); model.settings.style = .tilt
                         }
                     }
+                    OptionTile(title: "Phone flick", subtitle: "Flick your iPhone itself. No Watch needed.",
+                               symbol: "iphone.radiowaves.left.and.right",
+                               selected: model.settings.style == .phone) {
+                        Haptics.select(); model.settings.style = .phone
+                    }
+
+                    if model.settings.style == .phone { phoneCard }
 
                     sensitivityCard
 
@@ -53,6 +60,10 @@ struct HomeView: View {
             .background(Color.canvas)
             .navigationTitle("DoomScroll")
             .scrollIndicators(.hidden)
+        }
+        .sheet(isPresented: Binding(get: { model.phoneCalibration != .idle },
+                                    set: { if !$0 { model.cancelPhoneCalibration() } })) {
+            PhoneCalibrationSheet(model: model)
         }
         .confirmationDialog("Unpair \(model.token?.macName ?? "this Mac")?",
                             isPresented: $confirmUnpair, titleVisibility: .visible) {
@@ -119,6 +130,37 @@ struct HomeView: View {
         .accessibilityElement(children: .combine)
     }
 
+    // MARK: Phone flick
+
+    private var phoneReady: Bool { model.isPaired && model.linkState == .ready && model.phoneMotionAvailable }
+
+    private var phoneCard: some View {
+        Card {
+            VStack(alignment: .leading, spacing: 14) {
+                Text(model.phoneScrolling ? "Flicking is on" : "Flick your iPhone")
+                    .font(.system(.headline, design: .rounded, weight: .bold))
+                Text(phoneHint).font(.captionRounded).foregroundStyle(.secondary)
+                Button(model.phoneScrolling ? "Stop" : "Start flicking") { model.togglePhoneScrolling() }
+                    .buttonStyle(.primary)
+                    .disabled(!phoneReady && !model.phoneScrolling)
+                Button(model.settings.phoneCalibrated ? "Recalibrate direction" : "Calibrate direction") {
+                    model.startPhoneCalibration()
+                }
+                .buttonStyle(.secondary)
+                .disabled(!model.phoneMotionAvailable)
+            }
+        }
+    }
+
+    private var phoneHint: String {
+        if !model.isPaired { return "Pair your Mac first." }
+        if model.linkState != .ready { return "Waiting to connect to your Mac." }
+        if !model.phoneMotionAvailable { return "This device has no motion sensors." }
+        if model.phoneScrolling { return "Tip the top of your phone toward or away from you to scroll. Keep this screen open." }
+        if !model.settings.phoneCalibrated { return "Calibrate once so scrolling matches how you hold your phone, then start." }
+        return "Hold your phone upright, start, and flick. Keep this screen open while you scroll."
+    }
+
     // MARK: Device cards
 
     private var macCard: some View {
@@ -165,7 +207,7 @@ struct HomeView: View {
     private var macText: String {
         guard model.isPaired else { return "Not paired" }
         switch model.linkState {
-        case .ready: return "Connected"
+        case .ready: return model.linkViaBluetooth ? "Bluetooth" : "Connected"
         case .connecting: return "Connecting"
         case .localNetworkDenied: return "Blocked"
         default: return "Searching"

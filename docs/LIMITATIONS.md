@@ -52,6 +52,27 @@ Both run entirely from `CMDeviceMotion.attitude`/`rotationRate` — pitch
 drives vertical scroll, roll drives horizontal, yaw is ignored so turning
 your head or torso while wearing the watch doesn't inject noise.
 
+## Phone flick (third gesture)
+
+Besides flicking or tilting your wrist, you can pick **Phone flick** on the iPhone:
+the iPhone reads its own gyroscope and sends the same scroll commands to the Mac.
+No Watch is involved. It works only while the DoomScroll screen is open on the
+iPhone, because iOS stops delivering motion data to backgrounded apps. Starting and
+stopping is a button in the app; the Watch is disabled while this mode is selected.
+Calibrate once so "forward" matches how you hold your phone. The iPhone calibrates
+separately from the Watch because the two devices have different axes.
+
+## Bluetooth backup
+
+The Watch and iPhone connect to the Mac over Wi-Fi first. If the Mac cannot be reached
+that way for about 3 seconds (different network, a hotspot that blocks local devices,
+slow or no Wi-Fi), they fall back to Bluetooth LE, and switch back and stop scanning
+when Wi-Fi works again. The Mac advertises one writable characteristic and the apps
+write the same signed messages to it, so authentication and replay protection are
+identical. Bluetooth is slower to connect and has more latency than Wi-Fi, and the
+Mac will ask for Bluetooth permission the first time. **This path has not yet been
+tested on real hardware**, because it cannot be exercised from a single machine.
+
 ## The iPhone has to stay awake
 
 The Watch prefers a direct connection to the Mac. If it can only reach the

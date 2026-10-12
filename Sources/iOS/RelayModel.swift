@@ -5,8 +5,19 @@ import UIKit
 
 @MainActor
 final class RelayModel: ObservableObject {
+    enum PhoneCalibrationPhase: Equatable {
+        case idle
+        case waiting(CalibrationSession.Step)
+        case wrongAxis(CalibrationSession.Step)
+        case accepted(CalibrationSession.Step)
+        case done
+    }
+
+    @Published private(set) var phoneScrolling = false
+    @Published private(set) var phoneCalibration: PhoneCalibrationPhase = .idle
     @Published private(set) var token: PairingToken?
     @Published private(set) var linkState: MacLink.State = .idle
+    @Published private(set) var linkViaBluetooth = false
     @Published private(set) var watchInstalled = false
     @Published private(set) var watchReachable = false
     @Published var settings: ScrollSettings {
@@ -14,6 +25,8 @@ final class RelayModel: ObservableObject {
             if let data = try? JSONEncoder().encode(settings) {
                 UserDefaults.standard.set(data, forKey: "settings")
             }
+            phoneMotion.update(settings: settings)
+            if phoneScrolling && settings.style != .phone { setPhoneScrolling(false) }
             pushToWatch()
         }
     }
@@ -23,6 +36,8 @@ final class RelayModel: ObservableObject {
     @Published var scanError: String?
 
     private let bridge = PhoneBridge()
+    private let phoneMotion = PhoneMotionService()
+    private var phoneCalibrationSession: CalibrationSession?
     private var link: MacLink?
 
     init() {
@@ -38,6 +53,12 @@ final class RelayModel: ObservableObject {
         bridge.onMessage = { message in
             MainActorLinkAccess.shared.link?.send(message)
             BackgroundKeeper.shared.touch()
+        }
+        phoneMotion.onOutput = { message in
+            MainActorLinkAccess.shared.link?.send(message)
+        }
+        phoneMotion.onCalibration = { [weak self] outcome in
+            Task { @MainActor in self?.handlePhone(outcome) }
         }
         bridge.onControl = { [weak self] control in
             Task { @MainActor in self?.apply(control) }
@@ -106,6 +127,89 @@ final class RelayModel: ObservableObject {
 
     func appResignedActive() {
         UIApplication.shared.isIdleTimerDisabled = false
+        // iOS stops delivering motion in the background, so end the session cleanly
+        // and make sure the Mac is not left thinking scroll mode is still on.
+        setPhoneScrolling(false)
+        if phoneCalibration != .idle { cancelPhoneCalibration() }
+    }
+
+    // MARK: Phone flick
+
+    var phoneMotionAvailable: Bool { phoneMotion.isAvailable }
+
+    func togglePhoneScrolling() {
+        setPhoneScrolling(!phoneScrolling)
+    }
+
+    func setPhoneScrolling(_ on: Bool) {
+        guard on != phoneScrolling else { return }
+        if on {
+            guard settings.style == .phone, phoneMotion.isAvailable, isPaired,
+                  linkState == .ready else {
+                Haptics.error()
+                return
+            }
+            phoneScrolling = true
+            phoneMotion.start(settings: settings)
+            MainActorLinkAccess.shared.link?.send(.mode(active: true, target: settings.target))
+            Haptics.success()
+        } else {
+            phoneScrolling = false
+            phoneMotion.stop()
+            let l = MainActorLinkAccess.shared.link
+            l?.send(.scroll(dx: 0, dy: 0))
+            l?.send(.mode(active: false, target: settings.target))
+            Haptics.tap()
+        }
+    }
+
+    func startPhoneCalibration() {
+        setPhoneScrolling(false)
+        let session = CalibrationSession()
+        phoneCalibrationSession = session
+        phoneCalibration = .waiting(.down)
+        phoneMotion.startCalibration(session)
+    }
+
+    func cancelPhoneCalibration() {
+        phoneMotion.stop()
+        phoneCalibrationSession = nil
+        phoneCalibration = .idle
+    }
+
+    func finishPhoneCalibrationScreen() {
+        phoneCalibration = .idle
+    }
+
+    private func handlePhone(_ outcome: CalibrationSession.Outcome) {
+        switch outcome {
+        case .none:
+            break
+        case let .accepted(step):
+            Haptics.success()
+            phoneCalibration = .accepted(step)
+            Task {
+                try? await Task.sleep(nanoseconds: 900_000_000)
+                if case .accepted = phoneCalibration { phoneCalibration = .waiting(.right) }
+            }
+        case let .wrongAxis(expected):
+            Haptics.error()
+            phoneCalibration = .wrongAxis(expected)
+            Task {
+                try? await Task.sleep(nanoseconds: 1_400_000_000)
+                if case .wrongAxis = phoneCalibration { phoneCalibration = .waiting(expected) }
+            }
+        case let .finished(invertX, invertY):
+            phoneMotion.stop()
+            phoneCalibrationSession = nil
+            var s = settings
+            s.phoneInvertX = invertX
+            s.phoneInvertY = invertY
+            s.phoneCalibrated = true
+            settings = s
+            Haptics.success()
+            phoneCalibration = .done
+        }
     }
 
     // MARK: Internals
@@ -128,9 +232,11 @@ final class RelayModel: ObservableObject {
         MainActorLinkAccess.shared.link = nil
         linkState = .idle
         guard let token else { return }
-        let l = MacLink(token: token) { [weak self] state in
+        let l = MacLink(token: token, onStateChange: { [weak self] state in
             Task { @MainActor in self?.linkState = state }
-        }
+        }, onTransportChange: { [weak self] transport in
+            Task { @MainActor in self?.linkViaBluetooth = (transport == .bluetooth) }
+        })
         link = l
         MainActorLinkAccess.shared.link = l
         l.start()

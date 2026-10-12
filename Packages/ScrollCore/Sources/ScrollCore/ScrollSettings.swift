@@ -11,7 +11,29 @@ public struct ScrollSettings: Codable, Equatable, Sendable {
     /// Set once the user has demonstrated which way they scroll.
     public var calibrated = false
 
+    /// The iPhone has its own axes and signs, so it calibrates separately from the Watch.
+    public var phoneInvertX = false
+    public var phoneInvertY = false
+    public var phoneCalibrated = false
+
     public init() {}
+
+    /// Missing keys fall back to defaults, so settings saved by an older build keep
+    /// working instead of silently resetting when a field is added.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let d = ScrollSettings()
+        style = try c.decodeIfPresent(ControlStyle.self, forKey: .style) ?? d.style
+        sensitivity = try c.decodeIfPresent(Double.self, forKey: .sensitivity) ?? d.sensitivity
+        invertX = try c.decodeIfPresent(Bool.self, forKey: .invertX) ?? d.invertX
+        invertY = try c.decodeIfPresent(Bool.self, forKey: .invertY) ?? d.invertY
+        target = try c.decodeIfPresent(ScrollTarget.self, forKey: .target) ?? d.target
+        hapticsEnabled = try c.decodeIfPresent(Bool.self, forKey: .hapticsEnabled) ?? d.hapticsEnabled
+        calibrated = try c.decodeIfPresent(Bool.self, forKey: .calibrated) ?? d.calibrated
+        phoneInvertX = try c.decodeIfPresent(Bool.self, forKey: .phoneInvertX) ?? d.phoneInvertX
+        phoneInvertY = try c.decodeIfPresent(Bool.self, forKey: .phoneInvertY) ?? d.phoneInvertY
+        phoneCalibrated = try c.decodeIfPresent(Bool.self, forKey: .phoneCalibrated) ?? d.phoneCalibrated
+    }
 
     public static let sensitivityRange: ClosedRange<Double> = 0.4...2.5
 
@@ -21,6 +43,15 @@ public struct ScrollSettings: Codable, Equatable, Sendable {
         c.sensitivity = min(max(sensitivity, Self.sensitivityRange.lowerBound), Self.sensitivityRange.upperBound)
         c.invertX = invertX
         c.invertY = invertY
+        return c
+    }
+
+    /// Flick processing tuned for the iPhone: always the flick algorithm, with the phone's own signs.
+    public var phoneProcessorConfig: ProcessorConfig {
+        var c = processorConfig
+        c.style = .flick
+        c.invertX = phoneInvertX
+        c.invertY = phoneInvertY
         return c
     }
 }

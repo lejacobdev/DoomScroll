@@ -24,6 +24,8 @@ public enum ControlStyle: String, Codable, Sendable, CaseIterable {
     case flick
     /// Holding the wrist tilted scrolls continuously, like a joystick.
     case tilt
+    /// Flicking the iPhone itself, using its gyroscope. The Watch is not involved.
+    case phone
 }
 
 public struct ProcessorConfig: Sendable, Equatable {
@@ -81,7 +83,7 @@ public final class WristMotionProcessor {
     public func process(_ s: MotionSample) -> [ProcessorOutput] {
         switch config.style {
         case .tilt: return processTilt(s)
-        case .flick: return processFlick(s)
+        case .flick, .phone: return processFlick(s)
         }
     }
 

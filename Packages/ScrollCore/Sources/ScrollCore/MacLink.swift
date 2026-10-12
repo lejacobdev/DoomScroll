@@ -15,6 +15,9 @@ public final class MacLink: @unchecked Sendable {
         case localNetworkDenied
     }
 
+    /// Which path is carrying messages while `State.ready`.
+    public enum Transport: Equatable, Sendable { case network, bluetooth }
+
     public static let serviceType = "_doomscroll._tcp"
 
     private let queue = DispatchQueue(label: "dev.doomscroll.maclink", qos: .userInteractive)
@@ -22,24 +25,91 @@ public final class MacLink: @unchecked Sendable {
     private let token: PairingToken
     private let authenticator: MessageAuthenticator
     private let onStateChange: @Sendable (State) -> Void
+    private let onTransportChange: (@Sendable (Transport) -> Void)?
 
     private var browser: NWBrowser?
     private var connection: NWConnection?
     private var seq: UInt64 = 0
     private var backoff: TimeInterval = 0.5
     private var wanted = false
-    private var state = State.idle { didSet { if state != oldValue { onStateChange(state) } } }
+    /// State of the Wi-Fi/TCP path only. The public state also accounts for Bluetooth.
+    private var state = State.idle { didSet { if state != oldValue { publish(); evaluateFallback() } } }
+    private var published = State.idle
+    private var publishedTransport = Transport.network
+    private var bleReady = false {
+        didSet {
+            guard bleReady != oldValue else { return }
+            publish()
+            #if canImport(CoreBluetooth)
+            if bleReady, let m = lastMode { sendOverBluetooth(m) }
+            #endif
+        }
+    }
     private var lastMode: WireMessage?
+    private var fallbackScheduled = false
+    #if canImport(CoreBluetooth)
+    private var ble: BLEScrollClient?
+    #endif
 
-    public init(token: PairingToken, onStateChange: @escaping @Sendable (State) -> Void) {
+    public init(token: PairingToken,
+                onStateChange: @escaping @Sendable (State) -> Void,
+                onTransportChange: (@Sendable (Transport) -> Void)? = nil) {
         self.token = token
         self.authenticator = MessageAuthenticator(key: token.key)
         self.onStateChange = onStateChange
+        self.onTransportChange = onTransportChange
+        #if canImport(CoreBluetooth)
+        self.ble = BLEScrollClient(macName: token.macName) { [weak self] st in
+            self?.queue.async { self?.bleReady = (st == .ready) }
+        }
+        #endif
     }
 
     public var isReady: Bool {
-        queue.sync { state == .ready }
+        queue.sync { published == .ready }
     }
+
+    /// Strictly increasing across reconnects and transports, so the Mac's replay
+    /// protection never rejects a fresh connection.
+    private func nextSeq() -> UInt64 {
+        let nowMs = UInt64(Date().timeIntervalSince1970 * 1000)
+        seq = max(seq + 1, nowMs)
+        return seq
+    }
+
+    private func publish() {
+        let new: State = (state == .ready || bleReady) ? .ready : state
+        if new != published { published = new; onStateChange(new) }
+        let transport: Transport = (state != .ready && bleReady) ? .bluetooth : .network
+        if transport != publishedTransport { publishedTransport = transport; onTransportChange?(transport) }
+    }
+
+    /// Bluetooth only runs while the network path is down, and starts after a short grace
+    /// period so a normal Wi-Fi connection never wakes the radio.
+    private func evaluateFallback() {
+        #if canImport(CoreBluetooth)
+        guard wanted else { return }
+        if state == .ready {
+            ble?.stop()
+            fallbackScheduled = false
+            return
+        }
+        guard !fallbackScheduled else { return }
+        fallbackScheduled = true
+        queue.asyncAfter(deadline: .now() + 3) { [weak self] in
+            guard let self else { return }
+            self.fallbackScheduled = false
+            if self.wanted, self.state != .ready { self.ble?.start() }
+        }
+        #endif
+    }
+
+    #if canImport(CoreBluetooth)
+    private func sendOverBluetooth(_ message: WireMessage) {
+        let env = authenticator.seal(message, seq: nextSeq(), nowMs: Int64(Date().timeIntervalSince1970 * 1000))
+        if let data = try? LineFramer.encode(env) { ble?.send(data) }
+    }
+    #endif
 
     public func start() {
         queue.async {
@@ -47,6 +117,7 @@ public final class MacLink: @unchecked Sendable {
             self.wanted = true
             self.backoff = 0.5
             self.search()
+            self.evaluateFallback()
         }
     }
 
@@ -55,6 +126,9 @@ public final class MacLink: @unchecked Sendable {
             self.wanted = false
             self.browser?.cancel(); self.browser = nil
             self.connection?.cancel(); self.connection = nil
+            #if canImport(CoreBluetooth)
+            self.ble?.stop()
+            #endif
             self.state = .idle
         }
     }
@@ -65,14 +139,18 @@ public final class MacLink: @unchecked Sendable {
     public func send(_ message: WireMessage) {
         queue.async {
             if case .mode = message { self.lastMode = message }
-            guard self.state == .ready, let conn = self.connection else { return }
-            self.write(message, on: conn)
+            if self.state == .ready, let conn = self.connection {
+                self.write(message, on: conn)
+            } else if self.bleReady {
+                #if canImport(CoreBluetooth)
+                self.sendOverBluetooth(message)
+                #endif
+            }
         }
     }
 
     private func write(_ message: WireMessage, on conn: NWConnection) {
-        seq += 1
-        let env = authenticator.seal(message, seq: seq, nowMs: Int64(Date().timeIntervalSince1970 * 1000))
+        let env = authenticator.seal(message, seq: nextSeq(), nowMs: Int64(Date().timeIntervalSince1970 * 1000))
         guard let data = try? LineFramer.encode(env) else { return }
         conn.send(content: data, completion: .contentProcessed { [weak self] error in
             if let error { self?.log.debug("send failed: \(error.localizedDescription, privacy: .public)") }
@@ -141,7 +219,6 @@ public final class MacLink: @unchecked Sendable {
                 switch st {
                 case .ready:
                     self.backoff = 0.5
-                    self.seq = 0
                     self.state = .ready
                     self.listenForClose(conn)
                     if let m = self.lastMode { self.write(m, on: conn) }

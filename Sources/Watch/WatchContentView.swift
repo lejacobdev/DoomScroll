@@ -56,6 +56,8 @@ private struct MainView: View {
                 }
             }
             .buttonStyle(.plain)
+            .disabled(model.settings.style == .phone)
+            .opacity(model.settings.style == .phone ? 0.35 : 1)
             .doubleTapToToggle()
             .accessibilityLabel(model.scrollMode ? "Stop scrolling" : "Start scrolling")
             .accessibilityHint("Double-tap your fingers to toggle")
@@ -76,6 +78,7 @@ private struct MainView: View {
 
     private var hint: String {
         if model.motionUnavailable { return "Motion sensors unavailable" }
+        if model.settings.style == .phone { return "Phone mode: flick your iPhone" }
         if model.scrollMode {
             return model.settings.style == .flick ? "Flick your wrist" : "Tilt your wrist"
         }

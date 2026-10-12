@@ -10,6 +10,8 @@ final class MacModel: ObservableObject {
     @Published var clientCount = 0 {
         didSet { if clientCount > 0 && !hasPairedDevice { hasPairedDevice = true } }
     }
+    private var networkClients = 0 { didSet { clientCount = networkClients + bluetoothClients } }
+    private var bluetoothClients = 0 { didSet { clientCount = networkClients + bluetoothClients } }
     @Published var hasPairedDevice = UserDefaults.standard.bool(forKey: "hasPairedDevice") {
         didSet { UserDefaults.standard.set(hasPairedDevice, forKey: "hasPairedDevice") }
     }
@@ -29,6 +31,7 @@ final class MacModel: ObservableObject {
 
     private let engine = ScrollEngine()
     private var server: ScrollServer?
+    private var bluetoothServer: BLEScrollServer?
     private var trustPoll: Timer?
     private var activeTarget: ScrollTarget
 
@@ -54,11 +57,20 @@ final class MacModel: ObservableObject {
     private func startServer() {
         let callbacks = ScrollServer.Callbacks(
             onMessage: { [weak self] m in Task { @MainActor in self?.handle(m) } },
-            onClientCountChanged: { [weak self] n in Task { @MainActor in self?.clientCount = n } },
+            onClientCountChanged: { [weak self] n in Task { @MainActor in self?.networkClients = n } },
             onListenerState: { [weak self] s in Task { @MainActor in self?.listenerState = s } })
         let s = ScrollServer(key: token.key, serviceName: token.macName, callbacks: callbacks)
         server = s
         s.start()
+
+        // Bluetooth LE backup: same signed messages, used when Wi-Fi isn't available.
+        let bleCallbacks = ScrollServer.Callbacks(
+            onMessage: { [weak self] m in Task { @MainActor in self?.handle(m) } },
+            onClientCountChanged: { [weak self] n in Task { @MainActor in self?.bluetoothClients = n } },
+            onListenerState: { _ in })
+        let b = BLEScrollServer(key: token.key, macName: token.macName, callbacks: bleCallbacks)
+        bluetoothServer = b
+        b.start()
     }
 
     private func handle(_ message: WireMessage) {
@@ -96,6 +108,7 @@ final class MacModel: ObservableObject {
         fresh.store()
         token = fresh
         server?.updateKey(fresh.key)
+        bluetoothServer?.updateKey(fresh.key)
         hasPairedDevice = false
     }
 

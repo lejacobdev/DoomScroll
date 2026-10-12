@@ -52,6 +52,8 @@ targets:
         NSCameraUsageDescription: DoomScroll uses the camera only to scan the pairing code shown on your Mac.
         NSLocalNetworkUsageDescription: DoomScroll connects to your Mac on your local network to scroll it from your Apple Watch.
         NSBonjourServices: [_doomscroll._tcp]
+        NSBluetoothAlwaysUsageDescription: DoomScroll uses Bluetooth as a backup connection to your Mac when Wi-Fi is not available.
+        NSMotionUsageDescription: DoomScroll uses your iPhone's motion sensors to turn a flick into scrolling on your Mac.
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(DOOMSCROLL_BUNDLE_PREFIX)
@@ -79,6 +81,7 @@ targets:
         WKBackgroundModes: [workout-processing]
         NSLocalNetworkUsageDescription: DoomScroll connects to your Mac on your local network to scroll it from your wrist.
         NSBonjourServices: [_doomscroll._tcp]
+        NSBluetoothAlwaysUsageDescription: DoomScroll uses Bluetooth as a backup connection to your Mac when Wi-Fi is not available.
         NSHealthShareUsageDescription: DoomScroll starts a workout session only to keep scrolling responsive while your wrist is down. No health data is read.
         NSHealthUpdateUsageDescription: DoomScroll starts a workout session only to keep scrolling responsive while your wrist is down. No workout is saved.
     entitlements:
@@ -109,6 +112,7 @@ targets:
         CFBundleDisplayName: DoomScroll
         LSUIElement: true
         LSMinimumSystemVersion: "14.0"
+        NSBluetoothAlwaysUsageDescription: DoomScroll listens over Bluetooth as a backup when your iPhone or Apple Watch cannot reach this Mac over Wi-Fi.
         ITSAppUsesNonExemptEncryption: false
         NSLocalNetworkUsageDescription: DoomScroll listens on your local network for scroll commands from your paired iPhone and Apple Watch.
         NSBonjourServices: [_doomscroll._tcp]
@@ -118,6 +122,8 @@ targets:
         # Deliberately NOT sandboxed: posting scroll events into other apps is
         # impossible from the App Sandbox. Distributed via Developer ID + notarization.
         com.apple.security.app-sandbox: false
+        # Required for Bluetooth under the hardened runtime (notarized builds).
+        com.apple.security.device.bluetooth: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(DOOMSCROLL_BUNDLE_PREFIX).mac

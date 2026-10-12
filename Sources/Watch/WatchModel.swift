@@ -58,7 +58,8 @@ final class WatchModel: ObservableObject {
 
     func setScrollMode(_ on: Bool) {
         guard on != scrollMode else { return }
-        guard token != nil, !motionUnavailable, calibration == .idle else {
+        guard token != nil, !motionUnavailable, calibration == .idle,
+              !(on && settings.style == .phone) else {
             WKInterfaceDevice.current().play(.failure)
             return
         }
