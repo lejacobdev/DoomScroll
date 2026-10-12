@@ -11,6 +11,9 @@ on:
 
 # One upload at a time; a newer push waits rather than cancelling an upload
 # that is already in flight.
+permissions:
+  contents: read
+
 concurrency:
   group: testflight
   cancel-in-progress: false
