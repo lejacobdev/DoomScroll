@@ -19,6 +19,8 @@
     {
       "layers" : [
         {
+          "blend-mode" : "normal",
+          "fill" : "automatic",
           "glass" : true,
           "image-name" : "mouse.svg",
           "name" : "mouse",

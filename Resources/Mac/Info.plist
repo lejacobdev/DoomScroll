@@ -26,6 +26,8 @@
 	<string>14.0</string>
 	<key>LSUIElement</key>
 	<true/>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>DoomScroll listens over Bluetooth as a backup when your iPhone or Apple Watch cannot reach this Mac over Wi-Fi.</string>
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_doomscroll._tcp</string>

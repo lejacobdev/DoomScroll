@@ -20,6 +20,8 @@
 	<string>1.0</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>DoomScroll uses Bluetooth as a backup connection to your Mac when Wi-Fi is not available.</string>
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_doomscroll._tcp</string>

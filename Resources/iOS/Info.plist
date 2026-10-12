@@ -22,6 +22,8 @@
 	<string>1</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>DoomScroll uses Bluetooth as a backup connection to your Mac when Wi-Fi is not available.</string>
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_doomscroll._tcp</string>
@@ -30,6 +32,8 @@
 	<string>DoomScroll uses the camera only to scan the pairing code shown on your Mac.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>DoomScroll connects to your Mac on your local network to scroll it from your Apple Watch.</string>
+	<key>NSMotionUsageDescription</key>
+	<string>DoomScroll uses your iPhone's motion sensors to turn a flick into scrolling on your Mac.</string>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>UISupportedInterfaceOrientations</key>
