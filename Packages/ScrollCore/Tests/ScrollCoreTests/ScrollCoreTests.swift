@@ -437,3 +437,23 @@ import Network
         #expect(back.style == .phone)
     }
 }
+
+@Suite struct DestinationTests {
+    @Test func defaultsToMac() {
+        #expect(ScrollSettings().destination == .mac)
+    }
+
+    @Test func phoneDestinationSurvivesJSON() throws {
+        var s = ScrollSettings()
+        s.destination = .phone
+        let back = try JSONDecoder().decode(ScrollSettings.self, from: JSONEncoder().encode(s))
+        #expect(back.destination == .phone)
+    }
+
+    @Test func settingsFromABuildWithoutDestinationStillLoad() throws {
+        let old = #"{"style":"flick","sensitivity":1.5}"#
+        let s = try JSONDecoder().decode(ScrollSettings.self, from: Data(old.utf8))
+        #expect(s.destination == .mac)
+        #expect(s.sensitivity == 1.5)
+    }
+}

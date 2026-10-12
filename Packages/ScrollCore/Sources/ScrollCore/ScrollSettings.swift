@@ -1,5 +1,14 @@
 import Foundation
 
+/// Where the Watch's scroll commands end up.
+public enum ScrollDestination: Int, Codable, Sendable, CaseIterable {
+    /// Relay to the paired Mac, which scrolls any app (or the iPhone Mirroring window).
+    case mac = 0
+    /// Scroll the DoomScroll browser on this iPhone. No Mac involved. iOS does not
+    /// let one app scroll another, so this only reaches content inside DoomScroll.
+    case phone = 1
+}
+
 /// User settings, edited on the iPhone and synced to the Watch.
 public struct ScrollSettings: Codable, Equatable, Sendable {
     public var style: ControlStyle = .flick
@@ -7,6 +16,7 @@ public struct ScrollSettings: Codable, Equatable, Sendable {
     public var invertX = false
     public var invertY = false
     public var target: ScrollTarget = .pointer
+    public var destination: ScrollDestination = .mac
     public var hapticsEnabled = true
     /// Set once the user has demonstrated which way they scroll.
     public var calibrated = false
@@ -28,6 +38,7 @@ public struct ScrollSettings: Codable, Equatable, Sendable {
         invertX = try c.decodeIfPresent(Bool.self, forKey: .invertX) ?? d.invertX
         invertY = try c.decodeIfPresent(Bool.self, forKey: .invertY) ?? d.invertY
         target = try c.decodeIfPresent(ScrollTarget.self, forKey: .target) ?? d.target
+        destination = try c.decodeIfPresent(ScrollDestination.self, forKey: .destination) ?? d.destination
         hapticsEnabled = try c.decodeIfPresent(Bool.self, forKey: .hapticsEnabled) ?? d.hapticsEnabled
         calibrated = try c.decodeIfPresent(Bool.self, forKey: .calibrated) ?? d.calibrated
         phoneInvertX = try c.decodeIfPresent(Bool.self, forKey: .phoneInvertX) ?? d.phoneInvertX

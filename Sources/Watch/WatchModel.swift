@@ -35,6 +35,7 @@ final class WatchModel: ObservableObject {
         }
         token = PairingToken.loadStored()
         motionUnavailable = !motion.isAvailable
+        transport.setRelayOnly(settings.destination == .phone)
 
         bridge.onSettings = { [weak self] s in Task { @MainActor in self?.apply(settings: s) } }
         bridge.onPairing = { [weak self] t in Task { @MainActor in self?.apply(token: t) } }
@@ -48,7 +49,10 @@ final class WatchModel: ObservableObject {
         }
     }
 
-    var needsCalibration: Bool { token != nil && !settings.calibrated }
+    /// True once there is somewhere to send scrolls: a paired Mac, or this iPhone's browser.
+    var hasDestination: Bool { token != nil || settings.destination == .phone }
+
+    var needsCalibration: Bool { hasDestination && !settings.calibrated }
 
     // MARK: Scroll mode
 
@@ -58,7 +62,7 @@ final class WatchModel: ObservableObject {
 
     func setScrollMode(_ on: Bool) {
         guard on != scrollMode else { return }
-        guard token != nil, !motionUnavailable, calibration == .idle,
+        guard hasDestination, !motionUnavailable, calibration == .idle,
               !(on && settings.style == .phone) else {
             WKInterfaceDevice.current().play(.failure)
             return
@@ -143,6 +147,7 @@ final class WatchModel: ObservableObject {
 
     private func apply(settings new: ScrollSettings) {
         settings = new
+        transport.setRelayOnly(new.destination == .phone)
         if let data = try? JSONEncoder().encode(new) { UserDefaults.standard.set(data, forKey: "settings") }
         motion.update(settings: new)
     }

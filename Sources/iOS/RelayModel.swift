@@ -25,6 +25,7 @@ final class RelayModel: ObservableObject {
             if let data = try? JSONEncoder().encode(settings) {
                 UserDefaults.standard.set(data, forKey: "settings")
             }
+            MainActorLinkAccess.shared.destination = settings.destination
             phoneMotion.update(settings: settings)
             if phoneScrolling && settings.style != .phone { setPhoneScrolling(false) }
             pushToWatch()
@@ -49,13 +50,14 @@ final class RelayModel: ObservableObject {
         }
         hasOnboarded = UserDefaults.standard.bool(forKey: "hasOnboarded")
         token = PairingToken.loadStored()
+        MainActorLinkAccess.shared.destination = settings.destination
 
         bridge.onMessage = { message in
-            MainActorLinkAccess.shared.link?.send(message)
+            MainActorLinkAccess.shared.route(message)
             BackgroundKeeper.shared.touch()
         }
         phoneMotion.onOutput = { message in
-            MainActorLinkAccess.shared.link?.send(message)
+            MainActorLinkAccess.shared.route(message)
         }
         phoneMotion.onCalibration = { [weak self] outcome in
             Task { @MainActor in self?.handlePhone(outcome) }
@@ -144,21 +146,21 @@ final class RelayModel: ObservableObject {
     func setPhoneScrolling(_ on: Bool) {
         guard on != phoneScrolling else { return }
         if on {
-            guard settings.style == .phone, phoneMotion.isAvailable, isPaired,
-                  linkState == .ready else {
+            let hasDestination = settings.destination == .phone || (isPaired && linkState == .ready)
+            guard settings.style == .phone, phoneMotion.isAvailable, hasDestination else {
                 Haptics.error()
                 return
             }
             phoneScrolling = true
             phoneMotion.start(settings: settings)
-            MainActorLinkAccess.shared.link?.send(.mode(active: true, target: settings.target))
+            MainActorLinkAccess.shared.route(.mode(active: true, target: settings.target))
             Haptics.success()
         } else {
             phoneScrolling = false
             phoneMotion.stop()
-            let l = MainActorLinkAccess.shared.link
-            l?.send(.scroll(dx: 0, dy: 0))
-            l?.send(.mode(active: false, target: settings.target))
+            let access = MainActorLinkAccess.shared
+            access.route(.scroll(dx: 0, dy: 0))
+            access.route(.mode(active: false, target: settings.target))
             Haptics.tap()
         }
     }
@@ -253,9 +255,22 @@ final class MainActorLinkAccess: @unchecked Sendable {
     static let shared = MainActorLinkAccess()
     private let lock = NSLock()
     private var _link: MacLink?
+    private var _destination = ScrollDestination.mac
     var link: MacLink? {
         get { lock.lock(); defer { lock.unlock() }; return _link }
         set { lock.lock(); _link = newValue; lock.unlock() }
+    }
+    var destination: ScrollDestination {
+        get { lock.lock(); defer { lock.unlock() }; return _destination }
+        set { lock.lock(); _destination = newValue; lock.unlock() }
+    }
+
+    /// Sends a message to wherever the user chose: the Mac, or the browser on this iPhone.
+    func route(_ message: WireMessage) {
+        switch destination {
+        case .mac: link?.send(message)
+        case .phone: PhoneScrollSink.deliver(message)
+        }
     }
 }
 

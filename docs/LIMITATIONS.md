@@ -6,13 +6,16 @@
 |---|---|---|
 | **Mac, any app** | Yes | The Mac helper posts real `CGEvent` scroll-wheel events via `CGEvent.post(tap: .cghidEventTap)`. This reaches every app once you grant Accessibility access — it's the same mechanism a real mouse or trackpad uses, not a hack specific to one app. |
 | **iPhone, via Mac + iPhone Mirroring** | Yes, indirectly | macOS's iPhone Mirroring feature renders your iPhone's screen in a Mac window and forwards input to it. The Mac helper finds that window (`CGWindowListCopyWindowInfo`) and posts scroll events into its center point. This scrolls whatever's on your iPhone screen, in any app — but only while iPhone Mirroring is open, and only while the Mac is nearby. |
-| **iPhone directly, any app, no Mac** | **No — not possible on stock iOS** | iOS's app sandbox gives a third-party app zero access to another process's UI. There is no public API for one app to scroll another. `AXUIElement` (what makes this possible on macOS) doesn't exist on iOS. `UIAccessibility` actions are strictly in-process. IOKit/HID event injection is private API; apps using it are rejected from the App Store and from TestFlight review. This is a sandboxing boundary, not a missing feature — no amount of entitlements or paid developer account changes it. |
+| **iPhone, DoomScroll browser, no Mac** | Yes | Choose **This iPhone** in the app. The Watch relays through the iPhone to the DoomScroll browser (a `WKWebView`), where `PhoneScroller` moves its scroll view with the same momentum physics the Mac helper uses. Any website scrolls, but only inside DoomScroll. |
+| **iPhone directly, other apps (Safari, Instagram, ...), no Mac** | **No — not possible on stock iOS** | iOS's app sandbox gives a third-party app zero access to another process's UI. There is no public API for one app to scroll another. `AXUIElement` (what makes this possible on macOS) doesn't exist on iOS. `UIAccessibility` actions are strictly in-process. IOKit/HID event injection is private API; apps using it are rejected from the App Store and from TestFlight review. This is a sandboxing boundary, not a missing feature — no amount of entitlements or paid developer account changes it. |
 
-If you want hands-free scrolling with no Mac involved, in the current state
-of iOS that is not achievable with code that can be distributed through
-TestFlight or the App Store. The Mac + iPhone Mirroring path is the closest
-real equivalent — same "scroll my phone without touching it" outcome, with
-the Mac doing the part iOS refuses to let an app do.
+So without a Mac, scrolling works inside the DoomScroll browser only. To scroll
+Safari or another app hands-free, the Mac + iPhone Mirroring path is the
+closest real equivalent: the Mac does the part iOS refuses to let an app do.
+
+The browser needs the DoomScroll iPhone app open and on screen. The Watch
+reaches the iPhone through WatchConnectivity, which is only reliable while the
+iPhone app is in the foreground.
 
 ## Gesture
 

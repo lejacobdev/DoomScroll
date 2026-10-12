@@ -60,7 +60,7 @@ struct OnboardingView: View {
                 .buttonStyle(.primary)
                 .disabled(!primaryEnabled)
             if let secondary = secondaryTitle {
-                Button(secondary) { go(to: next) }
+                Button(secondary) { secondaryAction() }
                     .buttonStyle(.secondary)
             }
         }
@@ -99,7 +99,7 @@ struct OnboardingView: View {
             HStack { Spacer(); HeroBadge(symbol: "applewatch.watchface", size: 150); Spacer() }
                 .padding(.top, 24)
             heading("Scroll anything with a flick of your wrist.",
-                    "Control your Mac, and your iPhone through iPhone Mirroring, straight from your Apple Watch.")
+                    "Control your Mac, or scroll the browser on your iPhone, straight from your Apple Watch.")
             Card {
                 VStack(alignment: .leading, spacing: 18) {
                     InfoRow(symbol: "hand.point.up.left.fill", title: "Double-tap to start",
@@ -263,7 +263,10 @@ struct OnboardingView: View {
         VStack(alignment: .leading, spacing: 24) {
             HStack { Spacer(); HeroBadge(symbol: "checkmark", tint: Color.good, size: 150); Spacer() }
                 .padding(.top, 24)
-            heading("You're all set", "Try it on your Mac. Here's how it works:")
+            heading("You're all set",
+                    model.settings.destination == .phone
+                        ? "Open the browser on this iPhone to try it. Here's how it works:"
+                        : "Try it on your Mac. Here's how it works:")
             Card {
                 VStack(alignment: .leading, spacing: 18) {
                     InfoRow(symbol: "hand.point.up.left.fill", title: "Double-tap your fingers",
@@ -296,7 +299,11 @@ struct OnboardingView: View {
 
     // MARK: Navigation
 
-    private var previous: Step { Step(rawValue: max(0, step.rawValue - 1)) ?? .welcome }
+    private var previous: Step {
+        // Without a Mac there is nothing to pair, so Back skips that step.
+        if step == .watch && model.settings.destination == .phone { return .mac }
+        return Step(rawValue: max(0, step.rawValue - 1)) ?? .welcome
+    }
     private var next: Step { Step(rawValue: min(Step.allCases.count - 1, step.rawValue + 1)) ?? .done }
 
     private func go(to s: Step) {
@@ -324,13 +331,25 @@ struct OnboardingView: View {
 
     private var secondaryTitle: String? {
         switch step {
+        case .mac: "I don't have a Mac"
         case .watch where !model.watchInstalled: "Skip for now"
         case .calibrate where !model.settings.calibrated: "Skip for now"
         default: nil
         }
     }
 
+    private func secondaryAction() {
+        if step == .mac {
+            // Scroll the DoomScroll browser on this iPhone instead of a Mac.
+            model.settings.destination = .phone
+            go(to: .watch)
+        } else {
+            go(to: next)
+        }
+    }
+
     private func primaryAction() {
+        if step == .mac { model.settings.destination = .mac }
         if step == .done {
             Haptics.success()
             model.finishOnboarding()

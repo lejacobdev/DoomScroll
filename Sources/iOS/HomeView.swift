@@ -4,6 +4,7 @@ import SwiftUI
 struct HomeView: View {
     @ObservedObject var model: RelayModel
     @State private var confirmUnpair = false
+    @State private var showBrowser = false
     @Environment(\.openURL) private var openURL
 
     var body: some View {
@@ -11,7 +12,7 @@ struct HomeView: View {
             ScrollView {
                 VStack(spacing: 16) {
                     statusHero
-                    HStack(spacing: 12) { macCard; watchCard }
+                    HStack(spacing: 12) { destinationCard; watchCard }
 
                     SectionTitle("Gesture")
                     HStack(spacing: 12) {
@@ -34,22 +35,39 @@ struct HomeView: View {
 
                     sensitivityCard
 
-                    SectionTitle("Scroll target")
+                    SectionTitle("Where to scroll")
                     HStack(spacing: 12) {
-                        OptionTile(title: "Mac", subtitle: "Whatever your pointer is over",
-                                   symbol: "cursorarrow", selected: model.settings.target == .pointer) {
-                            Haptics.select(); model.settings.target = .pointer
+                        OptionTile(title: "Mac", subtitle: "Any app, over Wi-Fi",
+                                   symbol: "laptopcomputer", selected: model.settings.destination == .mac) {
+                            Haptics.select(); model.settings.destination = .mac
                         }
-                        OptionTile(title: "iPhone", subtitle: "Via iPhone Mirroring",
-                                   symbol: "iphone", selected: model.settings.target == .iPhoneMirroring) {
-                            Haptics.select(); model.settings.target = .iPhoneMirroring
+                        OptionTile(title: "This iPhone", subtitle: "In the DoomScroll browser. No Mac.",
+                                   symbol: "iphone", selected: model.settings.destination == .phone) {
+                            Haptics.select(); model.settings.destination = .phone
                         }
+                    }
+
+                    if model.settings.destination == .mac {
+                        HStack(spacing: 12) {
+                            OptionTile(title: "Pointer", subtitle: "Whatever your pointer is over",
+                                       symbol: "cursorarrow", selected: model.settings.target == .pointer) {
+                                Haptics.select(); model.settings.target = .pointer
+                            }
+                            OptionTile(title: "iPhone Mirroring", subtitle: "Scroll this iPhone via your Mac",
+                                       symbol: "rectangle.on.rectangle", selected: model.settings.target == .iPhoneMirroring) {
+                                Haptics.select(); model.settings.target = .iPhoneMirroring
+                            }
+                        }
+                    } else {
+                        browserCard
                     }
 
                     SectionTitle("More")
                     moreCard
 
-                    Text("Keep DoomScroll open on your iPhone while you scroll. It relays your Watch to your Mac and works best in the foreground.")
+                    Text(model.settings.destination == .phone
+                         ? "iOS only lets an app scroll its own content, so this scrolls the DoomScroll browser, not Safari or other apps. Keep it open on screen while you scroll."
+                         : "Keep DoomScroll open on your iPhone while you scroll. It relays your Watch to your Mac and works best in the foreground.")
                         .font(.captionRounded).foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 24).padding(.top, 4)
@@ -61,6 +79,7 @@ struct HomeView: View {
             .navigationTitle("DoomScroll")
             .scrollIndicators(.hidden)
         }
+        .fullScreenCover(isPresented: $showBrowser) { BrowserScreen() }
         .sheet(isPresented: Binding(get: { model.phoneCalibration != .idle },
                                     set: { if !$0 { model.cancelPhoneCalibration() } })) {
             PhoneCalibrationSheet(model: model)
@@ -83,6 +102,18 @@ struct HomeView: View {
     }
 
     private var hero: Hero {
+        if model.settings.destination == .phone {
+            if !model.watchInstalled {
+                return Hero(symbol: "applewatch.slash", tint: .warn, title: "Install the Watch app",
+                            subtitle: "Open the Watch app on this iPhone and install DoomScroll.")
+            }
+            if !model.settings.calibrated {
+                return Hero(symbol: "wand.and.rays", tint: .warn, title: "Calibrate your wrist",
+                            subtitle: "Open DoomScroll on your Watch and follow the prompts.")
+            }
+            return Hero(symbol: "checkmark", tint: .good, title: "Ready to scroll",
+                        subtitle: "Open the browser, then double-tap your fingers on your Watch.")
+        }
         if !model.isPaired {
             return Hero(symbol: "laptopcomputer", tint: .ink, title: "Pair your Mac",
                         subtitle: "Scan the code from the DoomScroll Mac app.")
@@ -116,11 +147,13 @@ struct HomeView: View {
                     Text(hero.subtitle).font(.bodyRounded).foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                 }
-                if model.linkState == .localNetworkDenied {
+                if model.settings.destination == .mac && model.linkState == .localNetworkDenied {
                     Button("Open Settings") {
                         if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
                     }
                     .buttonStyle(.primary)
+                } else if model.settings.destination == .phone {
+                    Button("Open browser") { showBrowser = true }.buttonStyle(.primary)
                 } else if !model.isPaired {
                     Button("Set up") { model.restartOnboarding() }.buttonStyle(.primary)
                 }
@@ -132,7 +165,10 @@ struct HomeView: View {
 
     // MARK: Phone flick
 
-    private var phoneReady: Bool { model.isPaired && model.linkState == .ready && model.phoneMotionAvailable }
+    private var phoneReady: Bool {
+        (model.settings.destination == .phone || (model.isPaired && model.linkState == .ready))
+            && model.phoneMotionAvailable
+    }
 
     private var phoneCard: some View {
         Card {
@@ -153,8 +189,10 @@ struct HomeView: View {
     }
 
     private var phoneHint: String {
-        if !model.isPaired { return "Pair your Mac first." }
-        if model.linkState != .ready { return "Waiting to connect to your Mac." }
+        if model.settings.destination == .mac {
+            if !model.isPaired { return "Pair your Mac first." }
+            if model.linkState != .ready { return "Waiting to connect to your Mac." }
+        }
         if !model.phoneMotionAvailable { return "This device has no motion sensors." }
         if model.phoneScrolling { return "Tip the top of your phone toward or away from you to scroll. Keep this screen open." }
         if !model.settings.phoneCalibrated { return "Calibrate once so scrolling matches how you hold your phone, then start." }
@@ -162,6 +200,41 @@ struct HomeView: View {
     }
 
     // MARK: Device cards
+
+    @ViewBuilder
+    private var destinationCard: some View {
+        if model.settings.destination == .phone {
+            Card(padding: 16) {
+                VStack(alignment: .leading, spacing: 10) {
+                    Image(systemName: "iphone").font(.system(size: 22, weight: .semibold))
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("This iPhone")
+                            .font(.system(.headline, design: .rounded, weight: .bold)).lineLimit(1)
+                        HStack(spacing: 6) {
+                            StatusDot(color: .good)
+                            Text("In-app browser").font(.captionRounded).foregroundStyle(.secondary).lineLimit(1)
+                        }
+                    }
+                }
+            }
+            .accessibilityElement(children: .combine)
+        } else {
+            macCard
+        }
+    }
+
+    private var browserCard: some View {
+        Card {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("DoomScroll browser")
+                    .font(.system(.headline, design: .rounded, weight: .bold))
+                Text("Open any website and scroll it with your Watch. iOS doesn't let apps scroll Safari or other apps, so this is where it works.")
+                    .font(.captionRounded).foregroundStyle(.secondary)
+                Button("Open browser") { showBrowser = true }
+                    .buttonStyle(.primary)
+            }
+        }
+    }
 
     private var macCard: some View {
         Card(padding: 16) {

@@ -19,7 +19,7 @@ struct WatchContentView: View {
 
     var body: some View {
         Group {
-            if model.token == nil {
+            if !model.hasDestination {
                 UnpairedView()
             } else if model.calibration != .idle {
                 CalibrationView(model: model)
@@ -101,6 +101,7 @@ private struct StatusPill: View {
     }
 
     private var text: String {
+        if model.settings.destination == .phone { return model.relayAvailable ? "This iPhone" : "Open iPhone app" }
         switch model.linkState {
         case .ready: return model.token?.macName ?? "Mac"
         case .localNetworkDenied: return "Allow Local Network"
@@ -109,6 +110,7 @@ private struct StatusPill: View {
     }
 
     private var color: Color {
+        if model.settings.destination == .phone { return model.relayAvailable ? .green : .orange }
         if model.linkState == .ready { return .green }
         if model.linkState == .localNetworkDenied { return .red }
         return model.relayAvailable ? .yellow : .orange
@@ -125,7 +127,7 @@ private struct UnpairedView: View {
                 .foregroundStyle(.white)
             Text("Pair on iPhone")
                 .font(.system(.headline, design: .rounded, weight: .bold))
-            Text("Open DoomScroll on your iPhone to connect your Mac.")
+            Text("Open DoomScroll on your iPhone to connect your Mac, or choose This iPhone.")
                 .font(.system(.caption2, design: .rounded))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)

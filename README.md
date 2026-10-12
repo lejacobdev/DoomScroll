@@ -15,10 +15,15 @@ Apple Watch  →  (direct Wi-Fi, or relayed via iPhone)  →  Mac menu-bar app
                                    the pointer                            (scrolls your iPhone)
 ```
 
+**No Mac?** Choose **This iPhone** in the app (or tap *I don't have a Mac*
+during setup). The Watch then scrolls the DoomScroll browser on your iPhone,
+so any website works, with nothing else needed.
+
 Read **[docs/LIMITATIONS.md](docs/LIMITATIONS.md)** first — in particular,
-there is no way for an iOS app to scroll other apps directly; that's an iOS
-sandboxing boundary, not something this project works around. Mac (and
-iPhone via Mirroring) is the real, fully-working path.
+there is no way for an iOS app to scroll other apps directly (Safari,
+Instagram, ...); that's an iOS sandboxing boundary, not something this
+project works around. Without a Mac, scrolling is limited to the DoomScroll
+browser. Mac (and iPhone via Mirroring) is the path that reaches other apps.
 
 ## Repository layout
 
