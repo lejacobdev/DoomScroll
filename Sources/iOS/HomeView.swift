@@ -328,6 +328,8 @@ struct HomeView: View {
                 divider
                 toggleRow("Reverse horizontal", "arrow.left.arrow.right", $model.settings.invertX)
                 divider
+                toggleRow("Reverse Digital Crown", "digitalcrown.arrow.clockwise", $model.settings.crownReversed)
+                divider
                 actionRow("Recalibrate wrist", "wand.and.rays") { model.resetCalibration() }
                 divider
                 actionRow("Show setup guide", "list.bullet.rectangle") { model.restartOnboarding() }

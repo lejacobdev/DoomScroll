@@ -18,6 +18,8 @@ public struct ScrollSettings: Codable, Equatable, Sendable {
     public var target: ScrollTarget = .pointer
     public var destination: ScrollDestination = .mac
     public var hapticsEnabled = true
+    /// Flips the Digital Crown scroll direction.
+    public var crownReversed = false
     /// Set once the user has demonstrated which way they scroll.
     public var calibrated = false
 
@@ -40,6 +42,7 @@ public struct ScrollSettings: Codable, Equatable, Sendable {
         target = try c.decodeIfPresent(ScrollTarget.self, forKey: .target) ?? d.target
         destination = try c.decodeIfPresent(ScrollDestination.self, forKey: .destination) ?? d.destination
         hapticsEnabled = try c.decodeIfPresent(Bool.self, forKey: .hapticsEnabled) ?? d.hapticsEnabled
+        crownReversed = try c.decodeIfPresent(Bool.self, forKey: .crownReversed) ?? d.crownReversed
         calibrated = try c.decodeIfPresent(Bool.self, forKey: .calibrated) ?? d.calibrated
         phoneInvertX = try c.decodeIfPresent(Bool.self, forKey: .phoneInvertX) ?? d.phoneInvertX
         phoneInvertY = try c.decodeIfPresent(Bool.self, forKey: .phoneInvertY) ?? d.phoneInvertY

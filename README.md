@@ -15,6 +15,10 @@ Apple Watch  →  (direct Wi-Fi, or relayed via iPhone)  →  Mac menu-bar app
                                    the pointer                            (scrolls your iPhone)
 ```
 
+**Digital Crown:** turning the Crown on your Watch scrolls too, with or
+without wrist scroll mode. If it goes the wrong way, use *Reverse Digital
+Crown* in the iPhone app.
+
 **No Mac?** Choose **This iPhone** in the app (or tap *I don't have a Mac*
 during setup). The Watch then scrolls the DoomScroll browser on your iPhone,
 so any website works, with nothing else needed.

@@ -457,3 +457,45 @@ import Network
         #expect(s.sensitivity == 1.5)
     }
 }
+
+@Suite struct CrownTests {
+    @Test func firstTurnScrollsInProportion() {
+        var c = CrownScroller()
+        #expect(c.rotate(by: 0.1, at: 0, sensitivity: 1, reversed: false) == .scroll(dx: 0, dy: 500))
+    }
+
+    @Test func turnsInsideTheIntervalAreSummed() {
+        var c = CrownScroller()
+        _ = c.rotate(by: 0.1, at: 0, sensitivity: 1, reversed: false)
+        #expect(c.rotate(by: 0.1, at: 0.01, sensitivity: 1, reversed: false) == nil)
+        #expect(c.rotate(by: 0.1, at: 0.06, sensitivity: 1, reversed: false) == .scroll(dx: 0, dy: 833))
+    }
+
+    @Test func reversedAndSensitivityApply() {
+        var a = CrownScroller()
+        #expect(a.rotate(by: 0.1, at: 0, sensitivity: 1, reversed: true) == .scroll(dx: 0, dy: -500))
+        var b = CrownScroller()
+        #expect(b.rotate(by: 0.1, at: 0, sensitivity: 2, reversed: false) == .scroll(dx: 0, dy: 1000))
+    }
+
+    @Test func speedIsCapped() {
+        var c = CrownScroller()
+        #expect(c.rotate(by: 100, at: 0, sensitivity: 1, reversed: false) == .scroll(dx: 0, dy: 9000))
+    }
+
+    @Test func stopIsSentOnceAfterMoving() {
+        var c = CrownScroller()
+        #expect(c.idle() == nil)
+        _ = c.rotate(by: 0.1, at: 0, sensitivity: 1, reversed: false)
+        #expect(c.idle() == .scroll(dx: 0, dy: 0))
+        #expect(c.idle() == nil)
+    }
+
+    @Test func crownSettingDefaultsOffAndSurvivesJSON() throws {
+        #expect(ScrollSettings().crownReversed == false)
+        var s = ScrollSettings()
+        s.crownReversed = true
+        let back = try JSONDecoder().decode(ScrollSettings.self, from: JSONEncoder().encode(s))
+        #expect(back.crownReversed)
+    }
+}

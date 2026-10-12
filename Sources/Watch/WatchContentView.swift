@@ -38,6 +38,7 @@ struct WatchContentView: View {
 
 private struct MainView: View {
     @ObservedObject var model: WatchModel
+    @State private var crown = 0.0
 
     var body: some View {
         VStack(spacing: 10) {
@@ -74,6 +75,12 @@ private struct MainView: View {
             StatusPill(model: model)
         }
         .padding(.horizontal, 6)
+        // Turning the Digital Crown scrolls too, with or without wrist scroll mode.
+        .focusable()
+        .digitalCrownRotation($crown, from: -1_000_000, through: 1_000_000,
+                              sensitivity: .medium, isContinuous: false,
+                              isHapticFeedbackEnabled: false)
+        .onChange(of: crown) { old, new in model.crownRotated(by: new - old) }
     }
 
     private var hint: String {

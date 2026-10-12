@@ -27,6 +27,10 @@ final class WatchModel: ObservableObject {
     private lazy var transport = Transport(bridge: bridge)
     private var relayPoll: Timer?
     private var calibrationSession: CalibrationSession?
+    private var crown = CrownScroller()
+    private var crownStopTask: Task<Void, Never>?
+    private var crownModeTask: Task<Void, Never>?
+    private var crownModeOn = false
 
     init() {
         if let data = UserDefaults.standard.data(forKey: "settings"),
@@ -80,6 +84,46 @@ final class WatchModel: ObservableObject {
             transport.send(.mode(active: false, target: settings.target))
             keepAlive.stop()
         }
+    }
+
+    // MARK: Digital Crown
+
+    /// Called for each crown rotation while the Watch app is frontmost. Works with
+    /// or without wrist scroll mode, since the crown is already an intentional input.
+    func crownRotated(by delta: Double) {
+        guard hasDestination, calibration == .idle, settings.style != .phone else { return }
+        let now = ProcessInfo.processInfo.systemUptime
+        crownModeTask?.cancel()
+        if let message = crown.rotate(by: delta, at: now, sensitivity: settings.sensitivity,
+                                      reversed: settings.crownReversed) {
+            if !scrollMode && !crownModeOn {
+                crownModeOn = true
+                transport.send(.mode(active: true, target: settings.target))
+            }
+            transport.send(message)
+        }
+        crownStopTask?.cancel()
+        crownStopTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 150_000_000)
+            guard !Task.isCancelled else { return }
+            self?.crownStopped()
+        }
+    }
+
+    private func crownStopped() {
+        if let stop = crown.idle() { transport.send(stop) }
+        crownModeTask?.cancel()
+        crownModeTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 1_200_000_000)
+            guard !Task.isCancelled else { return }
+            self?.crownSessionEnded()
+        }
+    }
+
+    private func crownSessionEnded() {
+        guard crownModeOn else { return }
+        crownModeOn = false
+        if !scrollMode { transport.send(.mode(active: false, target: settings.target)) }
     }
 
     func appBecameInactive() {

@@ -63,7 +63,13 @@ final class BrowserModel: NSObject, ObservableObject, WKUIDelegate {
 
     func goBack() { webView.goBack() }
     func goForward() { webView.goForward() }
-    func reload() { isLoading ? webView.stopLoading() : webView.reload() }
+    func reload() {
+        if isLoading {
+            webView.stopLoading()
+        } else {
+            webView.reload()
+        }
+    }
 
     // Links that ask for a new window would otherwise do nothing.
     func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration,
