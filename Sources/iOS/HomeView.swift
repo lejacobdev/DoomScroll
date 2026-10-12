@@ -5,6 +5,7 @@ struct HomeView: View {
     @ObservedObject var model: RelayModel
     @State private var confirmUnpair = false
     @State private var showBrowser = false
+    @AppStorage("lastScrollApp") private var lastApp = ""
     @Environment(\.openURL) private var openURL
 
     var body: some View {
@@ -225,13 +226,18 @@ struct HomeView: View {
 
     private var browserCard: some View {
         Card {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("DoomScroll browser")
+            VStack(spacing: 12) {
+                Text("Choose your app")
                     .font(.system(.headline, design: .rounded, weight: .bold))
-                Text("Watch Instagram Reels, YouTube Shorts or TikTok on the web, or any site, and flick your wrist to go to the next one. iOS doesn't let any app control the Instagram app itself, so this is where it works.")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                AppHoneycomb(selected: ScrollApp(rawValue: lastApp)) { app in
+                    lastApp = app.rawValue
+                    BrowserModel.shared.open(app)
+                    showBrowser = true
+                }
+                Text("Opens the web version in DoomScroll's browser, where your Watch can scroll it. iOS doesn't let any app control the TikTok, Instagram, YouTube or Snapchat apps themselves.")
                     .font(.captionRounded).foregroundStyle(.secondary)
-                Button("Open browser") { showBrowser = true }
-                    .buttonStyle(.primary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
     }

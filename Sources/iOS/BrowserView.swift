@@ -5,15 +5,8 @@ import WebKit
 @MainActor
 final class BrowserModel: NSObject, ObservableObject, WKUIDelegate {
     static let shared = BrowserModel()
-    private static let home = URL(string: "https://www.instagram.com/reels/")!
+    private static let home = URL(string: ScrollApp.instagram.startURL)!
     private static let lastURLKey = "browserLastURL"
-
-    /// One-tap starting points for full-screen video feeds.
-    static let quickLinks: [(title: String, url: String)] = [
-        ("Reels", "https://www.instagram.com/reels/"),
-        ("Shorts", "https://www.youtube.com/shorts"),
-        ("TikTok", "https://www.tiktok.com/foryou"),
-    ]
 
     let webView: WKWebView
     @Published var addressText = ""
@@ -21,6 +14,8 @@ final class BrowserModel: NSObject, ObservableObject, WKUIDelegate {
     @Published private(set) var canGoForward = false
     @Published private(set) var isLoading = false
     private var observers: [NSKeyValueObservation] = []
+    /// Host of the page being shown or loading, known before the web view reports it.
+    private var currentHost: String?
 
     override init() {
         let config = WKWebViewConfiguration()
@@ -48,13 +43,32 @@ final class BrowserModel: NSObject, ObservableObject, WKUIDelegate {
             },
         ]
         let saved = UserDefaults.standard.string(forKey: Self.lastURLKey).flatMap(URL.init(string:))
-        webView.load(URLRequest(url: saved ?? Self.home))
+        load(saved ?? Self.home)
+    }
+
+    private func load(_ url: URL) {
+        currentHost = url.host
+        webView.load(URLRequest(url: url))
+    }
+
+    /// Opens the chosen app's site, unless the browser is already on it.
+    func open(_ app: ScrollApp) {
+        let host = currentHost ?? ""
+        if let domain = app.domain {
+            if host.hasSuffix(domain) { return }
+        } else {
+            // "Web" keeps whatever page you're on, unless that is one of the app sites.
+            let onAppSite = ScrollApp.allCases.contains { $0.domain.map(host.hasSuffix) ?? false }
+            if !host.isEmpty && !onAppSite { return }
+        }
+        if let url = URL(string: app.startURL) { load(url) }
     }
 
     private func refreshState() {
         canGoBack = webView.canGoBack
         canGoForward = webView.canGoForward
         isLoading = webView.isLoading
+        if let host = webView.url?.host { currentHost = host }
         if let url = webView.url?.absoluteString {
             addressText = url
             if url.hasPrefix("http") { UserDefaults.standard.set(url, forKey: Self.lastURLKey) }
@@ -66,13 +80,13 @@ final class BrowserModel: NSObject, ObservableObject, WKUIDelegate {
         let text = input.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         if text.contains("://"), let url = URL(string: text) {
-            webView.load(URLRequest(url: url))
+            load(url)
         } else if text.contains("."), !text.contains(" "), let url = URL(string: "https://" + text) {
-            webView.load(URLRequest(url: url))
+            load(url)
         } else {
             var components = URLComponents(string: "https://duckduckgo.com/")!
             components.queryItems = [URLQueryItem(name: "q", value: text)]
-            if let url = components.url { webView.load(URLRequest(url: url)) }
+            if let url = components.url { load(url) }
         }
     }
 
@@ -169,13 +183,11 @@ struct BrowserScreen: View {
     private var toolbar: some View {
         VStack(spacing: 6) {
             addressRow
-            HStack(spacing: 8) {
-                ForEach(BrowserModel.quickLinks, id: \.title) { link in
-                    Button(link.title) { browser.go(to: link.url) }
-                        .font(.system(.footnote, design: .rounded, weight: .semibold))
-                        .padding(.horizontal, 12).padding(.vertical, 6)
-                        .background(Color.softFill, in: Capsule())
-                        .foregroundStyle(Color.ink)
+            HStack(spacing: 10) {
+                ForEach(ScrollApp.allCases) { app in
+                    Button { browser.open(app) } label: { AppBubble(app: app, size: 34) }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(app.title)
                 }
                 Spacer()
             }
