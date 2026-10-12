@@ -5,7 +5,7 @@ Three workflows in `.github/workflows/`:
 | Workflow | Trigger | What it does |
 |---|---|---|
 | `test.yml` | every PR / push to `main` | `swift test` on ScrollCore + unsigned Simulator builds. No secrets. |
-| `release-testflight.yml` | push tag `ios-v*`, or manual | Archives DoomScroll (+ embedded Watch app), uploads straight to App Store Connect / TestFlight. |
+| `release-testflight.yml` | every push to `production-mac-scroll`, any `ios-v*` tag, or manual | Archives DoomScroll (+ embedded Watch app), uploads straight to App Store Connect / TestFlight. |
 | `release-mac.yml` | push tag `mac-v*`, or manual | Archives DoomScrollMac, signs with Developer ID, notarizes, staples, attaches to a GitHub Release. |
 
 The Mac app ships outside the Mac App Store: `project.yml` sets

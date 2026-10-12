@@ -5,8 +5,15 @@ name: Release to TestFlight
 
 on:
   push:
+    branches: [production-mac-scroll]
     tags: ["ios-v*"]
   workflow_dispatch:
+
+# One upload at a time; a newer push waits rather than cancelling an upload
+# that is already in flight.
+concurrency:
+  group: testflight
+  cancel-in-progress: false
 
 jobs:
   upload:
