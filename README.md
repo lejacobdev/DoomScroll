@@ -19,6 +19,13 @@ Apple Watch  →  (direct Wi-Fi, or relayed via iPhone)  →  Mac menu-bar app
 without wrist scroll mode. If it goes the wrong way, use *Reverse Digital
 Crown* in the iPhone app.
 
+**Reels:** the instagram.com Reels, YouTube Shorts and TikTok web feeds work in
+the DoomScroll browser (log in once there). With *Reels mode* on (default),
+one flick, Crown turn or tilt moves exactly one video. The Instagram app itself
+can't be controlled by another app on iOS. The page-stepping script is generic,
+so a site redesign can break it; it's one function, `stepReel` in
+`Sources/iOS/BrowserView.swift`.
+
 **No Mac?** Choose **This iPhone** in the app (or tap *I don't have a Mac*
 during setup). The Watch then scrolls the DoomScroll browser on your iPhone,
 so any website works, with nothing else needed.

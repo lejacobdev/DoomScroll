@@ -20,6 +20,8 @@ public struct ScrollSettings: Codable, Equatable, Sendable {
     public var hapticsEnabled = true
     /// Flips the Digital Crown scroll direction.
     public var crownReversed = false
+    /// In the DoomScroll browser, one flick moves exactly one reel instead of free scrolling.
+    public var reelsMode = true
     /// Set once the user has demonstrated which way they scroll.
     public var calibrated = false
 
@@ -43,6 +45,7 @@ public struct ScrollSettings: Codable, Equatable, Sendable {
         destination = try c.decodeIfPresent(ScrollDestination.self, forKey: .destination) ?? d.destination
         hapticsEnabled = try c.decodeIfPresent(Bool.self, forKey: .hapticsEnabled) ?? d.hapticsEnabled
         crownReversed = try c.decodeIfPresent(Bool.self, forKey: .crownReversed) ?? d.crownReversed
+        reelsMode = try c.decodeIfPresent(Bool.self, forKey: .reelsMode) ?? d.reelsMode
         calibrated = try c.decodeIfPresent(Bool.self, forKey: .calibrated) ?? d.calibrated
         phoneInvertX = try c.decodeIfPresent(Bool.self, forKey: .phoneInvertX) ?? d.phoneInvertX
         phoneInvertY = try c.decodeIfPresent(Bool.self, forKey: .phoneInvertY) ?? d.phoneInvertY

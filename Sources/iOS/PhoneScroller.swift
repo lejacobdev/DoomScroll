@@ -14,6 +14,10 @@ final class PhoneScroller: ObservableObject {
     /// True between the Watch turning scroll mode on and off.
     @Published private(set) var watchActive = false
 
+    /// Reels mode: each flick moves one full-screen video instead of free scrolling.
+    var paged = true
+    private var stepper = PageStepper()
+
     private weak var scrollView: UIScrollView?
     private var scroller = MomentumScroller()
     private var displayLink: CADisplayLink?
@@ -34,6 +38,12 @@ final class PhoneScroller: ObservableObject {
 
     func handle(_ message: WireMessage) {
         let now = ProcessInfo.processInfo.systemUptime
+        if paged {
+            if case let .mode(active, _) = message { watchActive = active }
+            let step = stepper.handle(message, at: now)
+            if step != 0 { BrowserModel.shared.stepReel(step) }
+            return
+        }
         switch message {
         case let .scroll(dx, dy):
             scroller.setContinuous(dx: Double(dx), dy: Double(dy), at: now)

@@ -26,6 +26,7 @@ final class RelayModel: ObservableObject {
                 UserDefaults.standard.set(data, forKey: "settings")
             }
             MainActorLinkAccess.shared.destination = settings.destination
+            PhoneScroller.shared.paged = settings.reelsMode
             phoneMotion.update(settings: settings)
             if phoneScrolling && settings.style != .phone { setPhoneScrolling(false) }
             pushToWatch()
@@ -51,6 +52,7 @@ final class RelayModel: ObservableObject {
         hasOnboarded = UserDefaults.standard.bool(forKey: "hasOnboarded")
         token = PairingToken.loadStored()
         MainActorLinkAccess.shared.destination = settings.destination
+        PhoneScroller.shared.paged = settings.reelsMode
 
         bridge.onMessage = { message in
             MainActorLinkAccess.shared.route(message)

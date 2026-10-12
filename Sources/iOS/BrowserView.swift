@@ -5,7 +5,15 @@ import WebKit
 @MainActor
 final class BrowserModel: NSObject, ObservableObject, WKUIDelegate {
     static let shared = BrowserModel()
-    private static let home = URL(string: "https://duckduckgo.com")!
+    private static let home = URL(string: "https://www.instagram.com/reels/")!
+    private static let lastURLKey = "browserLastURL"
+
+    /// One-tap starting points for full-screen video feeds.
+    static let quickLinks: [(title: String, url: String)] = [
+        ("Reels", "https://www.instagram.com/reels/"),
+        ("Shorts", "https://www.youtube.com/shorts"),
+        ("TikTok", "https://www.tiktok.com/foryou"),
+    ]
 
     let webView: WKWebView
     @Published var addressText = ""
@@ -17,6 +25,9 @@ final class BrowserModel: NSObject, ObservableObject, WKUIDelegate {
     override init() {
         let config = WKWebViewConfiguration()
         config.allowsInlineMediaPlayback = true
+        // After the Watch moves to the next reel nobody taps the page, so videos
+        // must be allowed to start playing on their own.
+        config.mediaTypesRequiringUserActionForPlayback = []
         let view = WKWebView(frame: .zero, configuration: config)
         view.allowsBackForwardNavigationGestures = true
         webView = view
@@ -36,14 +47,18 @@ final class BrowserModel: NSObject, ObservableObject, WKUIDelegate {
                 Task { @MainActor in self?.refreshState() }
             },
         ]
-        webView.load(URLRequest(url: Self.home))
+        let saved = UserDefaults.standard.string(forKey: Self.lastURLKey).flatMap(URL.init(string:))
+        webView.load(URLRequest(url: saved ?? Self.home))
     }
 
     private func refreshState() {
         canGoBack = webView.canGoBack
         canGoForward = webView.canGoForward
         isLoading = webView.isLoading
-        if let url = webView.url?.absoluteString { addressText = url }
+        if let url = webView.url?.absoluteString {
+            addressText = url
+            if url.hasPrefix("http") { UserDefaults.standard.set(url, forKey: Self.lastURLKey) }
+        }
     }
 
     /// Turns what the user typed into a page: a full URL, a bare domain, or a search.
@@ -59,6 +74,40 @@ final class BrowserModel: NSObject, ObservableObject, WKUIDelegate {
             components.queryItems = [URLQueryItem(name: "q", value: text)]
             if let url = components.url { webView.load(URLRequest(url: url)) }
         }
+    }
+
+    /// Moves a full-screen feed by one video. Reel pages scroll an inner container
+    /// in whole screens, so find the scrollable element under the middle of the
+    /// page and move it by one screen; fall back to the page itself, then to the
+    /// arrow keys that some players listen for. `direction` is +1 for next, -1 for previous.
+    func stepReel(_ direction: Int) {
+        let script = """
+        (function (dir) {
+          function scrollable(el) {
+            while (el && el !== document.body && el !== document.documentElement) {
+              var s = getComputedStyle(el);
+              var y = s.overflowY;
+              if ((y === 'auto' || y === 'scroll' || y === 'overlay') && el.scrollHeight > el.clientHeight + 4) return el;
+              el = el.parentElement;
+            }
+            return null;
+          }
+          var el = document.elementFromPoint(window.innerWidth / 2, window.innerHeight / 2);
+          var box = scrollable(el);
+          if (box) { box.scrollBy({ top: dir * box.clientHeight, behavior: 'smooth' }); return 'container'; }
+          var root = document.scrollingElement || document.documentElement;
+          if (root.scrollHeight > window.innerHeight + 4) {
+            window.scrollBy({ top: dir * window.innerHeight, behavior: 'smooth' }); return 'page';
+          }
+          var key = dir > 0 ? 'ArrowDown' : 'ArrowUp';
+          var code = dir > 0 ? 40 : 38;
+          ['keydown', 'keyup'].forEach(function (type) {
+            document.dispatchEvent(new KeyboardEvent(type, { key: key, code: key, keyCode: code, which: code, bubbles: true }));
+          });
+          return 'key';
+        })(\(direction > 0 ? 1 : -1));
+        """
+        webView.evaluateJavaScript(script, completionHandler: nil)
     }
 
     func goBack() { webView.goBack() }
@@ -86,12 +135,23 @@ struct BrowserScreen: View {
     @ObservedObject private var scroller = PhoneScroller.shared
     @Environment(\.dismiss) private var dismiss
     @FocusState private var addressFocused: Bool
+    @State private var barHidden = false
 
     var body: some View {
         VStack(spacing: 0) {
-            toolbar
+            if !barHidden { toolbar }
             ZStack(alignment: .top) {
                 WebViewContainer(webView: browser.webView)
+                Button { withAnimation(.snappy) { barHidden.toggle() } } label: {
+                    Image(systemName: barHidden ? "chevron.down" : "chevron.up")
+                        .font(.system(size: 13, weight: .bold))
+                        .frame(width: 34, height: 34)
+                        .background(.thinMaterial, in: Circle())
+                }
+                .buttonStyle(.plain)
+                .padding(8)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                .accessibilityLabel(barHidden ? "Show address bar" : "Hide address bar for full screen")
                 if scroller.watchActive {
                     Label("Scrolling with your Watch", systemImage: "applewatch.radiowaves.left.and.right")
                         .font(.system(.footnote, design: .rounded, weight: .semibold))
@@ -107,6 +167,24 @@ struct BrowserScreen: View {
     }
 
     private var toolbar: some View {
+        VStack(spacing: 6) {
+            addressRow
+            HStack(spacing: 8) {
+                ForEach(BrowserModel.quickLinks, id: \.title) { link in
+                    Button(link.title) { browser.go(to: link.url) }
+                        .font(.system(.footnote, design: .rounded, weight: .semibold))
+                        .padding(.horizontal, 12).padding(.vertical, 6)
+                        .background(Color.softFill, in: Capsule())
+                        .foregroundStyle(Color.ink)
+                }
+                Spacer()
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+    }
+
+    private var addressRow: some View {
         HStack(spacing: 6) {
             Button { dismiss() } label: { Image(systemName: "xmark") }
                 .accessibilityLabel("Close browser")
@@ -134,8 +212,6 @@ struct BrowserScreen: View {
         }
         .font(.system(size: 17, weight: .semibold))
         .foregroundStyle(Color.ink)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
     }
 }
 

@@ -228,7 +228,7 @@ struct HomeView: View {
             VStack(alignment: .leading, spacing: 12) {
                 Text("DoomScroll browser")
                     .font(.system(.headline, design: .rounded, weight: .bold))
-                Text("Open any website and scroll it with your Watch. iOS doesn't let apps scroll Safari or other apps, so this is where it works.")
+                Text("Watch Instagram Reels, YouTube Shorts or TikTok on the web, or any site, and flick your wrist to go to the next one. iOS doesn't let any app control the Instagram app itself, so this is where it works.")
                     .font(.captionRounded).foregroundStyle(.secondary)
                 Button("Open browser") { showBrowser = true }
                     .buttonStyle(.primary)
@@ -327,6 +327,8 @@ struct HomeView: View {
                 toggleRow("Reverse vertical", "arrow.up.arrow.down", $model.settings.invertY)
                 divider
                 toggleRow("Reverse horizontal", "arrow.left.arrow.right", $model.settings.invertX)
+                divider
+                toggleRow("Reels mode: one flick, one reel", "play.rectangle", $model.settings.reelsMode)
                 divider
                 toggleRow("Reverse Digital Crown", "digitalcrown.arrow.clockwise", $model.settings.crownReversed)
                 divider

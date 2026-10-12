@@ -499,3 +499,51 @@ import Network
         #expect(back.crownReversed)
     }
 }
+
+@Suite struct PageStepperTests {
+    @Test func aFlickStepsOnceAndTheCooldownBlocksTheNext() {
+        var p = PageStepper()
+        #expect(p.handle(.fling(vx: 0, vy: 1500), at: 0) == 1)
+        #expect(p.handle(.fling(vx: 0, vy: 1500), at: 0.2) == 0)
+        #expect(p.handle(.fling(vx: 0, vy: -1500), at: 0.6) == -1)
+    }
+
+    @Test func weakAndSidewaysFlicksAreIgnored() {
+        var p = PageStepper()
+        #expect(p.handle(.fling(vx: 0, vy: 200), at: 0) == 0)
+        #expect(p.handle(.fling(vx: 2000, vy: 800), at: 1) == 0)
+    }
+
+    @Test func continuousInputStepsOnceEnoughDistanceBuilds() {
+        var p = PageStepper()
+        #expect(p.handle(.scroll(dx: 0, dy: 1000), at: 0) == 0)
+        #expect(p.handle(.scroll(dx: 0, dy: 1000), at: 0.05) == 0)
+        #expect(p.handle(.scroll(dx: 0, dy: 1000), at: 0.10) == 0)
+        #expect(p.handle(.scroll(dx: 0, dy: 1000), at: 0.15) == 1)
+        #expect(p.handle(.scroll(dx: 0, dy: 1000), at: 0.20) == 0)
+    }
+
+    @Test func continuousUpwardInputStepsBack() {
+        var p = PageStepper()
+        var step = 0
+        for i in 0..<5 where step == 0 {
+            step = p.handle(.scroll(dx: 0, dy: -1000), at: Double(i) * 0.05)
+        }
+        #expect(step == -1)
+    }
+
+    @Test func stopResetsTheBuiltUpDistance() {
+        var p = PageStepper()
+        _ = p.handle(.scroll(dx: 0, dy: 1000), at: 0)
+        _ = p.handle(.scroll(dx: 0, dy: 1000), at: 0.05)
+        _ = p.handle(.scroll(dx: 0, dy: 1000), at: 0.10)
+        _ = p.handle(.scroll(dx: 0, dy: 0), at: 0.12)
+        #expect(p.handle(.scroll(dx: 0, dy: 1000), at: 0.17) == 0)
+    }
+
+    @Test func reelsModeDefaultsOnAndOldSettingsLoad() throws {
+        #expect(ScrollSettings().reelsMode)
+        let s = try JSONDecoder().decode(ScrollSettings.self, from: Data(#"{"style":"tilt"}"#.utf8))
+        #expect(s.reelsMode)
+    }
+}
