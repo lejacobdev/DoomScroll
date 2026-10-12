@@ -2,30 +2,34 @@ import Foundation
 
 /// Learns which wrist motion the user means by "scroll down" and
 /// "scroll right". Wrist side, crown side and personal preference all change
-/// the sign of the raw rotation, so instead of guessing we ask the user to
-/// demonstrate it once.
+/// the sign of the raw rotation, and some people flick sideways for "down", so
+/// instead of guessing we ask the user to demonstrate both once.
+///
+/// Any flick is accepted for either step. The only thing that is rejected is
+/// the second flick being the same kind of motion as the first, because then
+/// there is no way to tell down from right.
 public final class CalibrationSession {
     public enum Step: Int, Sendable, CaseIterable {
-        /// "Flick your wrist the way you want to scroll DOWN."
+        /// "Flick your wrist to scroll DOWN."
         case down
-        /// "Roll your wrist the way you want to scroll RIGHT."
+        /// "Flick a different way to scroll RIGHT."
         case right
     }
 
     public enum Outcome: Equatable, Sendable {
         case none
-        /// A flick on the expected axis was recorded; move to the next step.
+        /// A flick was recorded; move to the next step.
         case accepted(Step)
-        /// A flick happened, but on the other axis. Ask the user to retry.
-        case wrongAxis(expected: Step)
-        case finished(invertX: Bool, invertY: Bool)
+        /// The second flick was the same kind of motion as the first. Ask the user to try another.
+        case sameMotion(expected: Step)
+        case finished(invertX: Bool, invertY: Bool, swapAxes: Bool)
     }
 
     public private(set) var step: Step? = .down
     private var vertical = AxisFlick()
     private var horizontal = AxisFlick()
-    private var invertY = false
-    private var invertX = false
+    private var firstOnVertical = true
+    private var firstSign = 1.0
     private let config: ProcessorConfig
 
     public init() {
@@ -46,22 +50,22 @@ public final class CalibrationSession {
         guard v != nil || h != nil else { return .none }
 
         // If both fired, the stronger one is what the user meant.
-        let vertWins = abs(v ?? 0) >= abs(h ?? 0)
-        let onVerticalAxis = v != nil && vertWins
-        let flickAxis: Step = onVerticalAxis ? .down : .right
-        guard flickAxis == expected else { return .wrongAxis(expected: expected) }
+        let onVertical = v != nil && abs(v ?? 0) >= abs(h ?? 0)
+        let signed = onVertical ? (v ?? 0) : (h ?? 0)
 
         switch expected {
         case .down:
-            // Positive vertical rate already means "down"; negative means the user's
-            // preferred direction is the opposite, so scrolling must be inverted.
-            invertY = (v ?? 0) < 0
+            firstOnVertical = onVertical
+            firstSign = signed
             step = .right
             return .accepted(.down)
         case .right:
-            invertX = (h ?? 0) < 0
+            guard onVertical != firstOnVertical else { return .sameMotion(expected: .right) }
+            // The first flick drives "down" and the second drives "right". When the first was
+            // the sideways motion, the axes swap roles. A negative rate means the user's
+            // preferred direction is the opposite, so that direction is inverted.
             step = nil
-            return .finished(invertX: invertX, invertY: invertY)
+            return .finished(invertX: signed < 0, invertY: firstSign < 0, swapAxes: !firstOnVertical)
         }
     }
 
@@ -69,19 +73,19 @@ public final class CalibrationSession {
         step = .down
         vertical = AxisFlick()
         horizontal = AxisFlick()
-        invertX = false
-        invertY = false
+        firstOnVertical = true
+        firstSign = 1
     }
 }
 
 /// Small control messages the Watch and iPhone exchange (not scroll data).
 public enum ControlMessage: Equatable, Sendable {
-    case calibrationResult(invertX: Bool, invertY: Bool)
+    case calibrationResult(invertX: Bool, invertY: Bool, swapAxes: Bool)
 
     public var dictionary: [String: Any] {
         switch self {
-        case let .calibrationResult(x, y):
-            return [WCKey.type: "cal_result", WCKey.a: x ? 1 : 0, WCKey.b: y ? 1 : 0]
+        case let .calibrationResult(x, y, swap):
+            return [WCKey.type: "cal_result", WCKey.a: x ? 1 : 0, WCKey.b: y ? 1 : 0, WCKey.c: swap ? 1 : 0]
         }
     }
 
@@ -90,7 +94,10 @@ public enum ControlMessage: Equatable, Sendable {
               let a = (d[WCKey.a] as? NSNumber)?.intValue,
               let b = (d[WCKey.b] as? NSNumber)?.intValue else { return nil }
         switch t {
-        case "cal_result": self = .calibrationResult(invertX: a != 0, invertY: b != 0)
+        case "cal_result":
+            // `c` is missing in messages from older builds, which never swapped axes.
+            let c = (d[WCKey.c] as? NSNumber)?.intValue ?? 0
+            self = .calibrationResult(invertX: a != 0, invertY: b != 0, swapAxes: c != 0)
         default: return nil
         }
     }

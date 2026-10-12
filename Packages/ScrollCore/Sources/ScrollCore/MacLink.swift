@@ -26,6 +26,8 @@ public final class MacLink: @unchecked Sendable {
     private let authenticator: MessageAuthenticator
     private let onStateChange: @Sendable (State) -> Void
     private let onTransportChange: (@Sendable (Transport) -> Void)?
+    /// Skips Wi-Fi entirely and talks to the Mac over Bluetooth only.
+    private let bluetoothOnly: Bool
 
     private var browser: NWBrowser?
     private var connection: NWConnection?
@@ -53,8 +55,10 @@ public final class MacLink: @unchecked Sendable {
 
     public init(token: PairingToken,
                 onStateChange: @escaping @Sendable (State) -> Void,
+                bluetoothOnly: Bool = false,
                 onTransportChange: (@Sendable (Transport) -> Void)? = nil) {
         self.token = token
+        self.bluetoothOnly = bluetoothOnly
         self.authenticator = MessageAuthenticator(key: token.key)
         self.onStateChange = onStateChange
         self.onTransportChange = onTransportChange
@@ -88,7 +92,7 @@ public final class MacLink: @unchecked Sendable {
     /// period so a normal Wi-Fi connection never wakes the radio.
     private func evaluateFallback() {
         #if canImport(CoreBluetooth)
-        guard wanted else { return }
+        guard wanted, !bluetoothOnly else { return }
         if state == .ready {
             ble?.stop()
             fallbackScheduled = false
@@ -116,8 +120,15 @@ public final class MacLink: @unchecked Sendable {
             guard !self.wanted else { return }
             self.wanted = true
             self.backoff = 0.5
-            self.search()
-            self.evaluateFallback()
+            if self.bluetoothOnly {
+                #if canImport(CoreBluetooth)
+                self.state = .searching
+                self.ble?.start()
+                #endif
+            } else {
+                self.search()
+                self.evaluateFallback()
+            }
         }
     }
 

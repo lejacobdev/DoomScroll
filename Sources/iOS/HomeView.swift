@@ -328,6 +328,8 @@ struct HomeView: View {
     private var moreCard: some View {
         Card(padding: 4) {
             VStack(spacing: 0) {
+                connectionRow
+                divider
                 toggleRow("Haptics on Watch", "hand.tap", $model.settings.hapticsEnabled)
                 divider
                 toggleRow("Reverse vertical", "arrow.up.arrow.down", $model.settings.invertY)
@@ -347,6 +349,26 @@ struct HomeView: View {
                 }
             }
         }
+    }
+
+    private var connectionRow: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label {
+                Text("Connection to Mac").font(.system(.body, design: .rounded, weight: .medium))
+            } icon: {
+                Image(systemName: "dot.radiowaves.left.and.right").frame(width: 28)
+            }
+            Picker("Connection to Mac", selection: $model.settings.connection) {
+                Text("Automatic").tag(ConnectionMode.automatic)
+                Text("Bluetooth only").tag(ConnectionMode.bluetooth)
+            }
+            .pickerStyle(.segmented)
+            Text(model.settings.connection == .bluetooth
+                 ? "Uses Bluetooth only, so the Mac doesn't need to share your Wi-Fi. Keep the Mac close."
+                 : "Uses Wi-Fi, and switches to Bluetooth if the Mac can't be reached.")
+                .font(.captionRounded).foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 16).padding(.vertical, 12)
     }
 
     private var divider: some View {

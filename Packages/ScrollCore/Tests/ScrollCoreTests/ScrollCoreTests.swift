@@ -338,27 +338,82 @@ import Network
         let s = CalibrationSession()
         #expect(run(s, snap(sign: 1, vertical: true)) == [.accepted(.down)])
         #expect(s.step == .right)
-        #expect(run(s, snap(sign: 1, vertical: false, from: 2)) == [.finished(invertX: false, invertY: false)])
+        #expect(run(s, snap(sign: 1, vertical: false, from: 2)) == [.finished(invertX: false, invertY: false, swapAxes: false)])
         #expect(s.isFinished)
     }
 
     @Test func negativeFlicksMeanInversion() {
         let s = CalibrationSession()
         _ = run(s, snap(sign: -1, vertical: true))
-        #expect(run(s, snap(sign: -1, vertical: false, from: 2)) == [.finished(invertX: true, invertY: true)])
+        #expect(run(s, snap(sign: -1, vertical: false, from: 2)) == [.finished(invertX: true, invertY: true, swapAxes: false)])
     }
 
     @Test func eachAxisIsLearnedIndependently() {
         let s = CalibrationSession()
         _ = run(s, snap(sign: 1, vertical: true))
-        #expect(run(s, snap(sign: -1, vertical: false, from: 2)) == [.finished(invertX: true, invertY: false)])
+        #expect(run(s, snap(sign: -1, vertical: false, from: 2)) == [.finished(invertX: true, invertY: false, swapAxes: false)])
     }
 
-    @Test func wrongAxisIsRejectedAndRetryWorks() {
+    @Test func aSidewaysFlickIsAcceptedForTheFirstStep() {
         let s = CalibrationSession()
-        #expect(run(s, snap(sign: 1, vertical: false)) == [.wrongAxis(expected: .down)])
-        #expect(s.step == .down)
-        #expect(run(s, snap(sign: 1, vertical: true, from: 2)) == [.accepted(.down)])
+        #expect(run(s, snap(sign: 1, vertical: false)) == [.accepted(.down)])
+        #expect(s.step == .right)
+    }
+
+    @Test func sidewaysThenVerticalSwapsTheAxes() {
+        let s = CalibrationSession()
+        _ = run(s, snap(sign: -1, vertical: false))
+        #expect(run(s, snap(sign: 1, vertical: true, from: 2))
+                == [.finished(invertX: false, invertY: true, swapAxes: true)])
+    }
+
+    @Test func theSameKindOfFlickTwiceIsTheOnlyInvalidCase() {
+        let s = CalibrationSession()
+        _ = run(s, snap(sign: 1, vertical: true))
+        // Same axis again, even in the other direction: invalid, still on step 2.
+        #expect(run(s, snap(sign: -1, vertical: true, from: 2)) == [.sameMotion(expected: .right)])
+        #expect(s.step == .right)
+        // A different kind of flick then completes it.
+        #expect(run(s, snap(sign: 1, vertical: false, from: 4))
+                == [.finished(invertX: false, invertY: false, swapAxes: false)])
+    }
+
+    @Test func sidewaysTwiceIsAlsoInvalid() {
+        let s = CalibrationSession()
+        _ = run(s, snap(sign: 1, vertical: false))
+        #expect(run(s, snap(sign: 1, vertical: false, from: 2)) == [.sameMotion(expected: .right)])
+    }
+
+    @Test func swappedAxesDriveTheScrollDirections() {
+        var c = ProcessorConfig()
+        c.swapAxes = true
+        let p = WristMotionProcessor(config: c)
+        p.begin(neutralPitch: 0, neutralRoll: 0)
+        var out: [ProcessorOutput] = []
+        var t = 0.0
+        // A roll (sideways) snap now scrolls vertically.
+        for r in [1.0, 4.0, 6.0, 5.0, 2.5, 0.5, -2.0, -4.0, -3.0, -1.0, 0.0] {
+            out += p.process(MotionSample(t: t, pitch: 0, roll: 0, pitchRate: 0, rollRate: r))
+            t += 0.02
+        }
+        #expect(out.contains { if case let .fling(vx, vy) = $0 { return vx == 0 && vy > 0 } else { return false } })
+    }
+
+    @Test func connectionModeDefaultsToAutomaticAndSurvivesJSON() throws {
+        #expect(ScrollSettings().connection == .automatic)
+        let old = #"{"style":"flick"}"#
+        #expect(try JSONDecoder().decode(ScrollSettings.self, from: Data(old.utf8)).connection == .automatic)
+        var s = ScrollSettings(); s.connection = .bluetooth
+        #expect(try JSONDecoder().decode(ScrollSettings.self, from: JSONEncoder().encode(s)).connection == .bluetooth)
+    }
+
+    @Test func swapAxesDefaultsOffAndOldSettingsLoad() throws {
+        #expect(!ScrollSettings().swapAxes && !ScrollSettings().phoneSwapAxes)
+        let old = #"{"style":"flick","sensitivity":1.5}"#
+        let back = try JSONDecoder().decode(ScrollSettings.self, from: Data(old.utf8))
+        #expect(!back.swapAxes && !back.phoneSwapAxes)
+        var s = ScrollSettings(); s.swapAxes = true; s.phoneSwapAxes = true
+        #expect(s.processorConfig.swapAxes && s.phoneProcessorConfig.swapAxes)
     }
 
     @Test func restartForgetsEverything() {
@@ -367,14 +422,17 @@ import Network
         s.restart()
         #expect(s.step == .down)
         _ = run(s, snap(sign: 1, vertical: true, from: 3))
-        #expect(run(s, snap(sign: 1, vertical: false, from: 6)) == [.finished(invertX: false, invertY: false)])
+        #expect(run(s, snap(sign: 1, vertical: false, from: 6)) == [.finished(invertX: false, invertY: false, swapAxes: false)])
     }
 }
 
 @Suite struct ControlMessageTests {
     @Test func calibrationResultRoundTrips() {
-        let m = ControlMessage.calibrationResult(invertX: true, invertY: false)
+        let m = ControlMessage.calibrationResult(invertX: true, invertY: false, swapAxes: true)
         #expect(ControlMessage(dictionary: m.dictionary) == m)
+        // Older builds send no swap flag.
+        #expect(ControlMessage(dictionary: ["t": "cal_result", "a": 1, "b": 0])
+                == .calibrationResult(invertX: true, invertY: false, swapAxes: false))
         #expect(ControlMessage(dictionary: ["t": "nope", "a": 1, "b": 1]) == nil)
         #expect(ControlMessage(dictionary: ["t": "cal_result"]) == nil)
     }

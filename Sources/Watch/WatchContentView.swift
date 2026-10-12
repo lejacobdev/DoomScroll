@@ -227,8 +227,8 @@ private struct CalibrationView: View {
             switch model.calibration {
             case let .waiting(step):
                 prompt(step, warning: nil)
-            case let .wrongAxis(step):
-                prompt(step, warning: step == .down ? "That looks sideways. Try up or down." : "That looks vertical. Try rolling.")
+            case let .sameMotion(step):
+                prompt(step, warning: "Same motion as step 1. Flick a different way.")
             case let .accepted(step):
                 Image(systemName: "checkmark.circle.fill")
                     .font(.system(size: 44)).foregroundStyle(.green)
@@ -258,7 +258,7 @@ private struct CalibrationView: View {
             .font(.system(size: 44, weight: .bold))
             .symbolEffect(.pulse)
         Text(step == .down ? "Flick your wrist the way you want to scroll down"
-                           : "Roll your wrist the way you want to scroll right")
+                           : "Now flick a different way to scroll right")
             .font(.system(.footnote, design: .rounded, weight: .semibold))
             .multilineTextAlignment(.center)
         if let warning {

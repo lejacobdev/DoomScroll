@@ -33,6 +33,8 @@ public struct ProcessorConfig: Sendable, Equatable {
     public var sensitivity: Double = 1.0
     public var invertX = false
     public var invertY = false
+    /// The user's "down" motion is the sideways one, so the two sensor axes trade roles.
+    public var swapAxes = false
 
     // Tilt style
     public var deadzone: Double = 0.14       // rad (~8 deg)
@@ -90,8 +92,10 @@ public final class WristMotionProcessor {
     // MARK: Tilt
 
     private func processTilt(_ s: MotionSample) -> [ProcessorOutput] {
-        let vy = tiltVelocity(s.pitch - basePitch)
-        let vx = tiltVelocity(s.roll - baseRoll)
+        let dPitch = s.pitch - basePitch
+        let dRoll = s.roll - baseRoll
+        let vy = tiltVelocity(config.swapAxes ? dRoll : dPitch)
+        let vx = tiltVelocity(config.swapAxes ? dPitch : dRoll)
         let dx = Int((signed(vx, invert: config.invertX)).rounded())
         let dy = Int((signed(vy, invert: config.invertY)).rounded())
         if dx == 0 && dy == 0 {
@@ -116,8 +120,8 @@ public final class WristMotionProcessor {
     // MARK: Flick
 
     private func processFlick(_ s: MotionSample) -> [ProcessorOutput] {
-        let fy = pitchFlick.step(rate: s.pitchRate, t: s.t, config: config)
-        let fx = rollFlick.step(rate: s.rollRate, t: s.t, config: config)
+        let fy = pitchFlick.step(rate: config.swapAxes ? s.rollRate : s.pitchRate, t: s.t, config: config)
+        let fx = rollFlick.step(rate: config.swapAxes ? s.pitchRate : s.rollRate, t: s.t, config: config)
         guard fx != nil || fy != nil else { return [] }
         let vy = fy.map { signed($0, invert: config.invertY) } ?? 0
         let vx = fx.map { signed($0, invert: config.invertX) } ?? 0

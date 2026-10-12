@@ -8,7 +8,7 @@ final class RelayModel: ObservableObject {
     enum PhoneCalibrationPhase: Equatable {
         case idle
         case waiting(CalibrationSession.Step)
-        case wrongAxis(CalibrationSession.Step)
+        case sameMotion(CalibrationSession.Step)
         case accepted(CalibrationSession.Step)
         case done
     }
@@ -27,6 +27,7 @@ final class RelayModel: ObservableObject {
             }
             MainActorLinkAccess.shared.destination = settings.destination
             PhoneScroller.shared.paged = settings.reelsMode
+            if oldValue.connection != settings.connection { rebuildLink() }
             phoneMotion.update(settings: settings)
             if phoneScrolling && settings.style != .phone { setPhoneScrolling(false) }
             pushToWatch()
@@ -196,19 +197,20 @@ final class RelayModel: ObservableObject {
                 try? await Task.sleep(nanoseconds: 900_000_000)
                 if case .accepted = phoneCalibration { phoneCalibration = .waiting(.right) }
             }
-        case let .wrongAxis(expected):
+        case let .sameMotion(expected):
             Haptics.error()
-            phoneCalibration = .wrongAxis(expected)
+            phoneCalibration = .sameMotion(expected)
             Task {
                 try? await Task.sleep(nanoseconds: 1_400_000_000)
-                if case .wrongAxis = phoneCalibration { phoneCalibration = .waiting(expected) }
+                if case .sameMotion = phoneCalibration { phoneCalibration = .waiting(expected) }
             }
-        case let .finished(invertX, invertY):
+        case let .finished(invertX, invertY, swapAxes):
             phoneMotion.stop()
             phoneCalibrationSession = nil
             var s = settings
             s.phoneInvertX = invertX
             s.phoneInvertY = invertY
+            s.phoneSwapAxes = swapAxes
             s.phoneCalibrated = true
             settings = s
             Haptics.success()
@@ -220,10 +222,11 @@ final class RelayModel: ObservableObject {
 
     private func apply(_ control: ControlMessage) {
         switch control {
-        case let .calibrationResult(invertX, invertY):
+        case let .calibrationResult(invertX, invertY, swapAxes):
             var s = settings
             s.invertX = invertX
             s.invertY = invertY
+            s.swapAxes = swapAxes
             s.calibrated = true
             settings = s
             Haptics.success()
@@ -238,7 +241,7 @@ final class RelayModel: ObservableObject {
         guard let token else { return }
         let l = MacLink(token: token, onStateChange: { [weak self] state in
             Task { @MainActor in self?.linkState = state }
-        }, onTransportChange: { [weak self] transport in
+        }, bluetoothOnly: settings.connection == .bluetooth, onTransportChange: { [weak self] transport in
             Task { @MainActor in self?.linkViaBluetooth = (transport == .bluetooth) }
         })
         link = l

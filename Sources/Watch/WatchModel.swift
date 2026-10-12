@@ -8,7 +8,7 @@ final class WatchModel: ObservableObject {
     enum CalibrationPhase: Equatable {
         case idle
         case waiting(CalibrationSession.Step)
-        case wrongAxis(CalibrationSession.Step)
+        case sameMotion(CalibrationSession.Step)
         case accepted(CalibrationSession.Step)
         case done
     }
@@ -166,22 +166,23 @@ final class WatchModel: ObservableObject {
                 try? await Task.sleep(nanoseconds: 900_000_000)
                 if case .accepted = calibration { calibration = .waiting(.right) }
             }
-        case let .wrongAxis(expected):
+        case let .sameMotion(expected):
             WKInterfaceDevice.current().play(.failure)
-            calibration = .wrongAxis(expected)
+            calibration = .sameMotion(expected)
             Task {
                 try? await Task.sleep(nanoseconds: 1_400_000_000)
-                if case .wrongAxis = calibration { calibration = .waiting(expected) }
+                if case .sameMotion = calibration { calibration = .waiting(expected) }
             }
-        case let .finished(invertX, invertY):
+        case let .finished(invertX, invertY, swapAxes):
             motion.stop()
             calibrationSession = nil
             var updated = settings
             updated.invertX = invertX
             updated.invertY = invertY
+            updated.swapAxes = swapAxes
             updated.calibrated = true
             apply(settings: updated)
-            bridge.send(control: .calibrationResult(invertX: invertX, invertY: invertY))
+            bridge.send(control: .calibrationResult(invertX: invertX, invertY: invertY, swapAxes: swapAxes))
             WKInterfaceDevice.current().play(.success)
             calibration = .done
         }
@@ -190,7 +191,9 @@ final class WatchModel: ObservableObject {
     // MARK: Inbound from iPhone
 
     private func apply(settings new: ScrollSettings) {
+        let connectionChanged = settings.connection != new.connection
         settings = new
+        if connectionChanged { rebuildLink() }
         transport.setRelayOnly(new.destination == .phone)
         if let data = try? JSONEncoder().encode(new) { UserDefaults.standard.set(data, forKey: "settings") }
         motion.update(settings: new)
@@ -211,9 +214,9 @@ final class WatchModel: ObservableObject {
         transport.setLink(nil)
         linkState = .idle
         guard let token else { return }
-        let l = MacLink(token: token) { [weak self] state in
+        let l = MacLink(token: token, onStateChange: { [weak self] state in
             Task { @MainActor in self?.linkState = state }
-        }
+        }, bluetoothOnly: settings.connection == .bluetooth)
         transport.setLink(l)
         l.start()
     }

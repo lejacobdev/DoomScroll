@@ -11,9 +11,8 @@ struct PhoneCalibrationSheet: View {
             switch model.phoneCalibration {
             case let .waiting(step):
                 prompt(step, warning: nil)
-            case let .wrongAxis(step):
-                prompt(step, warning: step == .down ? "That looked sideways. Try tipping the top toward or away from you."
-                                                    : "That looked forward and back. Try tilting it left or right.")
+            case .sameMotion(let step):
+                prompt(step, warning: "That was the same motion as step 1. Flick it a different way.")
             case let .accepted(step):
                 HeroBadge(symbol: "checkmark", tint: Color.good, size: 130)
                 Text(step == .down ? "Got it" : "Nice").font(.display(30))
@@ -46,7 +45,7 @@ struct PhoneCalibrationSheet: View {
         HeroBadge(symbol: step == .down ? "arrow.down" : "arrow.right", size: 130)
             .symbolEffect(.pulse)
         Text(step == .down ? "Flick your phone the way you want to scroll down"
-                           : "Tilt your phone the way you want to scroll right")
+                           : "Now flick it a different way to scroll right")
             .font(.display(26)).multilineTextAlignment(.center)
             .fixedSize(horizontal: false, vertical: true)
         Text("Hold it upright like you're reading it, then give it one quick flick.")

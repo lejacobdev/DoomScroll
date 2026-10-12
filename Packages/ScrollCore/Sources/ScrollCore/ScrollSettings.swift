@@ -9,14 +9,25 @@ public enum ScrollDestination: Int, Codable, Sendable, CaseIterable {
     case phone = 1
 }
 
+/// How the iPhone and Watch reach the Mac.
+public enum ConnectionMode: Int, Codable, Sendable, CaseIterable {
+    /// Wi-Fi first, with Bluetooth taking over if the Mac can't be reached over Wi-Fi.
+    case automatic = 0
+    /// Bluetooth only. Slower to connect and shorter range, but needs no shared network.
+    case bluetooth = 1
+}
+
 /// User settings, edited on the iPhone and synced to the Watch.
 public struct ScrollSettings: Codable, Equatable, Sendable {
     public var style: ControlStyle = .flick
     public var sensitivity: Double = 1.0
     public var invertX = false
     public var invertY = false
+    /// Learned in calibration: the wrist's sideways motion means "down".
+    public var swapAxes = false
     public var target: ScrollTarget = .pointer
     public var destination: ScrollDestination = .mac
+    public var connection: ConnectionMode = .automatic
     public var hapticsEnabled = true
     /// Flips the Digital Crown scroll direction.
     public var crownReversed = false
@@ -28,6 +39,7 @@ public struct ScrollSettings: Codable, Equatable, Sendable {
     /// The iPhone has its own axes and signs, so it calibrates separately from the Watch.
     public var phoneInvertX = false
     public var phoneInvertY = false
+    public var phoneSwapAxes = false
     public var phoneCalibrated = false
 
     public init() {}
@@ -41,14 +53,17 @@ public struct ScrollSettings: Codable, Equatable, Sendable {
         sensitivity = try c.decodeIfPresent(Double.self, forKey: .sensitivity) ?? d.sensitivity
         invertX = try c.decodeIfPresent(Bool.self, forKey: .invertX) ?? d.invertX
         invertY = try c.decodeIfPresent(Bool.self, forKey: .invertY) ?? d.invertY
+        swapAxes = try c.decodeIfPresent(Bool.self, forKey: .swapAxes) ?? d.swapAxes
         target = try c.decodeIfPresent(ScrollTarget.self, forKey: .target) ?? d.target
         destination = try c.decodeIfPresent(ScrollDestination.self, forKey: .destination) ?? d.destination
+        connection = try c.decodeIfPresent(ConnectionMode.self, forKey: .connection) ?? d.connection
         hapticsEnabled = try c.decodeIfPresent(Bool.self, forKey: .hapticsEnabled) ?? d.hapticsEnabled
         crownReversed = try c.decodeIfPresent(Bool.self, forKey: .crownReversed) ?? d.crownReversed
         reelsMode = try c.decodeIfPresent(Bool.self, forKey: .reelsMode) ?? d.reelsMode
         calibrated = try c.decodeIfPresent(Bool.self, forKey: .calibrated) ?? d.calibrated
         phoneInvertX = try c.decodeIfPresent(Bool.self, forKey: .phoneInvertX) ?? d.phoneInvertX
         phoneInvertY = try c.decodeIfPresent(Bool.self, forKey: .phoneInvertY) ?? d.phoneInvertY
+        phoneSwapAxes = try c.decodeIfPresent(Bool.self, forKey: .phoneSwapAxes) ?? d.phoneSwapAxes
         phoneCalibrated = try c.decodeIfPresent(Bool.self, forKey: .phoneCalibrated) ?? d.phoneCalibrated
     }
 
@@ -60,6 +75,7 @@ public struct ScrollSettings: Codable, Equatable, Sendable {
         c.sensitivity = min(max(sensitivity, Self.sensitivityRange.lowerBound), Self.sensitivityRange.upperBound)
         c.invertX = invertX
         c.invertY = invertY
+        c.swapAxes = swapAxes
         return c
     }
 
@@ -69,6 +85,7 @@ public struct ScrollSettings: Codable, Equatable, Sendable {
         c.style = .flick
         c.invertX = phoneInvertX
         c.invertY = phoneInvertY
+        c.swapAxes = phoneSwapAxes
         return c
     }
 }
@@ -80,6 +97,7 @@ public enum WCKey {
     public static let type = "t"                  // live message: "scroll" | "fling" | "nudge" | "mode" | "ping"
     public static let a = "a"
     public static let b = "b"
+    public static let c = "c"
 
     public static func dictionary(for message: WireMessage) -> [String: Any] {
         let (a, b): (Int, Int)
