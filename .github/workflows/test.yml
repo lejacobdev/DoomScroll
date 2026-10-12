@@ -25,11 +25,17 @@ jobs:
       - uses: actions/checkout@v4
       - run: brew install xcodegen
       - run: xcodegen generate
-      - name: Build iOS + watchOS app (embedded)
+      - name: Build iPhone app
         run: |
           xcodebuild build \
             -project DoomScroll.xcodeproj -scheme DoomScroll -configuration Debug \
             -destination 'generic/platform=iOS Simulator' -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO
+      - name: Build Watch app (standalone scheme while detached from the iPhone app)
+        run: |
+          xcodebuild build \
+            -project DoomScroll.xcodeproj -scheme DoomScrollWatch -configuration Debug \
+            -destination 'generic/platform=watchOS Simulator' -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO
       - name: Build Mac app
         run: |

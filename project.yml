@@ -37,8 +37,11 @@ targets:
       - path: Resources/PrivacyInfo.xcprivacy
     dependencies:
       - package: ScrollCore
-      - target: DoomScrollWatch
-        embed: true
+      # Watch app temporarily detached from the iPhone app so it can be tested on
+      # its own. To re-embed it, restore these two lines and add DoomScrollWatch
+      # back to the DoomScroll scheme's build targets:
+      #   - target: DoomScrollWatch
+      #     embed: true
     info:
       path: Resources/iOS/Info.plist
       properties:
@@ -127,6 +130,13 @@ schemes:
     build:
       targets:
         DoomScroll: all
+    run:
+      config: Debug
+    archive:
+      config: Release
+  DoomScrollWatch:
+    build:
+      targets:
         DoomScrollWatch: all
     run:
       config: Debug
