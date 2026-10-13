@@ -5,7 +5,7 @@ extension View {
     /// Binds the system Double Tap (index finger + thumb pinch; Series 9 /
     /// Ultra 2 and later on watchOS 11) to this control.
     @ViewBuilder
-    func doubleTapToToggle() -> some View {
+    func doubleTapTarget() -> some View {
         if #available(watchOS 11.0, *) {
             self.handGestureShortcut(.primaryAction)
         } else {
@@ -106,9 +106,10 @@ private struct MainView: View {
                     model.startCalibration()
                 }
             )
-            .doubleTapToToggle()
+            // Only a press toggles scrolling; Double Tap is for liking (the heart below).
+            .pressOnly()
             .accessibilityLabel(model.scrollMode ? "Stop scrolling" : "Start scrolling")
-            .accessibilityHint("Press, or double-tap your fingers, to toggle. Touch and hold to recalibrate.")
+            .accessibilityHint("Press to toggle. Touch and hold to recalibrate.")
 
             VStack(spacing: 2) {
                 Text(model.scrollMode ? "Scrolling" : "Ready")
@@ -125,7 +126,20 @@ private struct MainView: View {
                 }
             }
 
-            StatusPill(model: model)
+            HStack(spacing: 8) {
+                StatusPill(model: model)
+                Button { model.like() } label: {
+                    Image(systemName: "heart.fill")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(.pink)
+                        .frame(width: 30, height: 30)
+                        .background(.white.opacity(0.12), in: Circle())
+                }
+                .buttonStyle(.plain)
+                .doubleTapTarget()
+                .accessibilityLabel("Like")
+                .accessibilityHint("Double-tap your fingers to like what's on screen")
+            }
         }
         .padding(.horizontal, 6)
         // Turning the Digital Crown scrolls too, with or without wrist scroll mode.
@@ -142,7 +156,7 @@ private struct MainView: View {
         if model.scrollMode {
             return model.settings.style == .flick ? "Flick your wrist" : "Tilt your wrist"
         }
-        return "Press or double-tap"
+        return "Press to scroll · double-tap to like"
     }
 }
 

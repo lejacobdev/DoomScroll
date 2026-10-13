@@ -27,4 +27,26 @@ final class ScrollInjector {
         if let point { event.location = point }
         event.post(tap: .cghidEventTap)
     }
+
+    private let clickQueue = DispatchQueue(label: "dev.doomscroll.click", qos: .userInteractive)
+
+    /// Posts a double-click at `point`, or at the pointer when nil, then puts the pointer
+    /// back. The clicks are spaced like a person's so iPhone Mirroring sees a double tap.
+    func doubleClick(at point: CGPoint?) {
+        guard Self.isTrusted else { return }
+        clickQueue.async {
+            let original = CGEvent(source: nil)?.location
+            guard let target = point ?? original else { return }
+            for click in 1...2 {
+                for type in [CGEventType.leftMouseDown, .leftMouseUp] {
+                    guard let e = CGEvent(mouseEventSource: nil, mouseType: type,
+                                          mouseCursorPosition: target, mouseButton: .left) else { continue }
+                    e.setIntegerValueField(.mouseEventClickState, value: Int64(click))
+                    e.post(tap: .cghidEventTap)
+                    Thread.sleep(forTimeInterval: type == .leftMouseDown ? 0.03 : 0.07)
+                }
+            }
+            if point != nil, let original { CGWarpMouseCursorPosition(original) }
+        }
+    }
 }

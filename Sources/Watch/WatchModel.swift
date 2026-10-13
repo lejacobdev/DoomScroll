@@ -31,6 +31,7 @@ final class WatchModel: ObservableObject {
     private var crownStopTask: Task<Void, Never>?
     private var crownModeTask: Task<Void, Never>?
     private var crownModeOn = false
+    private var lastLike: TimeInterval = -.infinity
 
     init() {
         if let data = UserDefaults.standard.data(forKey: "settings"),
@@ -84,6 +85,22 @@ final class WatchModel: ObservableObject {
             transport.send(.mode(active: false, target: settings.target))
             keepAlive.stop()
         }
+    }
+
+    // MARK: Like
+
+    /// Double Tap (or the heart button): like what's on screen.
+    func like() {
+        guard hasDestination, calibration == .idle else {
+            WKInterfaceDevice.current().play(.failure)
+            return
+        }
+        let now = ProcessInfo.processInfo.systemUptime
+        guard now - lastLike > 0.6 else { return }
+        lastLike = now
+        transport.startLink()
+        transport.send(.like)
+        haptic(.click)
     }
 
     // MARK: Digital Crown

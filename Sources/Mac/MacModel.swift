@@ -44,7 +44,7 @@ final class MacModel: ObservableObject {
             token = PairingToken(key: stored.key, macName: name)
         } else {
             let fresh = PairingToken.generate(macName: name)
-            fresh.store()
+            if !fresh.store() { NSLog("DoomScroll: could not save the pairing key; pairing will not survive a restart") }
             token = fresh
         }
         engine.setTarget(savedTarget)
@@ -90,6 +90,8 @@ final class MacModel: ObservableObject {
             engine.fling(vx: vx, vy: vy)
         case let .nudge(dx, dy):
             engine.nudge(dx: dx, dy: dy)
+        case .like:
+            engine.like()
         case .ping:
             break
         }
@@ -107,7 +109,7 @@ final class MacModel: ObservableObject {
 
     func resetPairing() {
         let fresh = PairingToken.generate(macName: token.macName)
-        fresh.store()
+        if !fresh.store() { NSLog("DoomScroll: could not save the pairing key; pairing will not survive a restart") }
         token = fresh
         server?.updateKey(fresh.key)
         bluetoothServer?.updateKey(fresh.key)

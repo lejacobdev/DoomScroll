@@ -35,7 +35,16 @@ public final class MacLink: @unchecked Sendable {
     private var backoff: TimeInterval = 0.5
     private var wanted = false
     /// State of the Wi-Fi/TCP path only. The public state also accounts for Bluetooth.
-    private var state = State.idle { didSet { if state != oldValue { publish(); evaluateFallback() } } }
+    private var state = State.idle {
+        didSet {
+            guard state != oldValue else { return }
+            publish()
+            evaluateFallback()
+            #if canImport(CoreBluetooth)
+            updateKeepAlive()
+            #endif
+        }
+    }
     private var published = State.idle
     private var publishedTransport = Transport.network
     private var bleReady = false {
@@ -44,11 +53,13 @@ public final class MacLink: @unchecked Sendable {
             publish()
             #if canImport(CoreBluetooth)
             if bleReady, let m = lastMode { sendOverBluetooth(m) }
+            updateKeepAlive()
             #endif
         }
     }
     private var lastMode: WireMessage?
     private var fallbackScheduled = false
+    private var keepAlive: DispatchSourceTimer?
     #if canImport(CoreBluetooth)
     private var ble: BLEScrollClient?
     #endif
@@ -109,6 +120,25 @@ public final class MacLink: @unchecked Sendable {
     }
 
     #if canImport(CoreBluetooth)
+    /// Bluetooth has no connection the Mac can watch, so it counts a device as connected
+    /// while messages keep arriving. A ping every 2 s keeps an idle link counted.
+    private func updateKeepAlive() {
+        if bleReady && state != .ready {
+            guard keepAlive == nil else { return }
+            let t = DispatchSource.makeTimerSource(queue: queue)
+            t.schedule(deadline: .now() + 2, repeating: 2)
+            t.setEventHandler { [weak self] in
+                guard let self, self.bleReady, self.state != .ready else { return }
+                self.sendOverBluetooth(.ping)
+            }
+            keepAlive = t
+            t.resume()
+        } else {
+            keepAlive?.cancel()
+            keepAlive = nil
+        }
+    }
+
     private func sendOverBluetooth(_ message: WireMessage) {
         let env = authenticator.seal(message, seq: nextSeq(), nowMs: Int64(Date().timeIntervalSince1970 * 1000))
         if let data = try? LineFramer.encode(env) { ble?.send(data) }

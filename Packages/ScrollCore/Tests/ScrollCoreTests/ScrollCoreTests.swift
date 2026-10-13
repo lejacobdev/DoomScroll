@@ -598,6 +598,27 @@ import Network
     }
 }
 
+@Suite struct LikeAndBluetoothTests {
+    @Test func likeSurvivesTheWireAndTheWatchRelay() throws {
+        let auth = MessageAuthenticator(key: Data(repeating: 9, count: 32))
+        #expect(try auth.open(auth.seal(.like, seq: 1, nowMs: 1_000)) == .like)
+        #expect(WCKey.message(from: WCKey.dictionary(for: .like)) == .like)
+    }
+
+    @Test func likeDoesNotMoveAReel() {
+        var p = PageStepper()
+        #expect(p.handle(.like, at: 0) == 0)
+    }
+
+    @Test func bluetoothNameMatchToleratesShortenedNames() {
+        let expected = BluetoothTransport.advertisedName(for: "MacBook Pro von Jacob")
+        #expect(BluetoothTransport.nameMatches(advertised: expected, expected: expected))
+        #expect(BluetoothTransport.nameMatches(advertised: "MacBook Pro v", expected: expected))
+        #expect(!BluetoothTransport.nameMatches(advertised: "Someone's iMac", expected: expected))
+        #expect(!BluetoothTransport.nameMatches(advertised: "", expected: expected))
+    }
+}
+
 @Suite struct PageStepperTests {
     @Test func aFlickStepsOnceAndTheCooldownBlocksTheNext() {
         var p = PageStepper()

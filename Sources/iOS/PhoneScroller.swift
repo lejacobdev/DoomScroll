@@ -37,6 +37,10 @@ final class PhoneScroller: ObservableObject {
     }
 
     func handle(_ message: WireMessage) {
+        if case .like = message {
+            BrowserModel.shared.likeCurrent()
+            return
+        }
         let now = ProcessInfo.processInfo.systemUptime
         if paged {
             if case let .mode(active, _) = message { watchActive = active }
@@ -58,7 +62,7 @@ final class PhoneScroller: ObservableObject {
             watchActive = active
             // Release a held tilt but let a fling coast to a stop.
             if !active { scroller.setContinuous(dx: 0, dy: 0, at: now) }
-        case .ping:
+        case .like, .ping:
             break
         }
     }

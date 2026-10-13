@@ -41,6 +41,15 @@ final class ScrollEngine {
         }
     }
 
+    /// Double-clicks where scrolling lands, which likes the post in most feeds
+    /// (and is a double tap on the iPhone when aimed at iPhone Mirroring).
+    func like() {
+        queue.async {
+            let point = TargetResolver.point(for: self.target)
+            self.injector.doubleClick(at: point)
+        }
+    }
+
     func stopAll() {
         queue.async {
             self.scroller.stop()

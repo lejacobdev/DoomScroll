@@ -17,6 +17,8 @@ public enum WireMessage: Equatable, Sendable {
     /// One-shot scroll distance in points, applied right away (Digital Crown).
     case nudge(dx: Int, dy: Int)
     case mode(active: Bool, target: ScrollTarget)
+    /// Like what's on screen: a double-click on the Mac, the like button in the iPhone browser.
+    case like
     case ping
 
     var type: String {
@@ -25,6 +27,7 @@ public enum WireMessage: Equatable, Sendable {
         case .fling: "fling"
         case .nudge: "nudge"
         case .mode: "mode"
+        case .like: "like"
         case .ping: "ping"
         }
     }
@@ -35,7 +38,7 @@ public enum WireMessage: Equatable, Sendable {
         case let .fling(vx, vy): (vx, vy)
         case let .nudge(dx, dy): (dx, dy)
         case let .mode(active, target): (active ? 1 : 0, target.rawValue)
-        case .ping: (0, 0)
+        case .like, .ping: (0, 0)
         }
     }
 }
@@ -93,6 +96,7 @@ public struct MessageAuthenticator: Sendable {
         case "mode":
             guard let target = ScrollTarget(rawValue: env.b) else { throw WireError.unknownType }
             return .mode(active: env.a != 0, target: target)
+        case "like": return .like
         case "ping": return .ping
         default: throw WireError.unknownType
         }

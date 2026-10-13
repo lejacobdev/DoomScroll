@@ -13,6 +13,8 @@ final class BrowserModel: NSObject, ObservableObject, WKUIDelegate {
     @Published private(set) var canGoBack = false
     @Published private(set) var canGoForward = false
     @Published private(set) var isLoading = false
+    /// Bumped on every like so the browser can show a heart.
+    @Published private(set) var likeCount = 0
     private var observers: [NSKeyValueObservation] = []
     /// Host of the page being shown or loading, known before the web view reports it.
     private var currentHost: String?
@@ -124,6 +126,45 @@ final class BrowserModel: NSObject, ObservableObject, WKUIDelegate {
         webView.evaluateJavaScript(script, completionHandler: nil)
     }
 
+    /// Likes the post in view. Feeds show many posts, so this presses the like button
+    /// closest to the middle of the screen, and never one that is already liked (a
+    /// double tap only ever likes). Sites without a recognisable button get a double-click
+    /// in the middle of the page instead.
+    func likeCurrent() {
+        likeCount += 1
+        let script = """
+        (function () {
+          var selectors = [
+            'svg[aria-label="Like"]',
+            '[data-e2e="like-icon"]', '[data-e2e="browse-like-icon"]', '[data-e2e="video-player-like-icon"]',
+            'ytm-like-button-renderer button', 'like-button-view-model button',
+            'button[aria-label^="like this" i]', 'button[aria-label="Like" i]', '[role="button"][aria-label="Like" i]'
+          ];
+          var mid = window.innerHeight / 2, best = null, bestDist = Infinity;
+          selectors.forEach(function (sel) {
+            document.querySelectorAll(sel).forEach(function (el) {
+              var btn = el.closest('button,[role="button"]') || el;
+              var label = (btn.getAttribute('aria-label') || el.getAttribute('aria-label') || '').toLowerCase();
+              if (label.indexOf('unlike') >= 0 || btn.getAttribute('aria-pressed') === 'true') return;
+              var r = btn.getBoundingClientRect();
+              if (r.width === 0 || r.bottom < 0 || r.top > window.innerHeight) return;
+              var d = Math.abs((r.top + r.bottom) / 2 - mid);
+              if (d < bestDist) { bestDist = d; best = btn; }
+            });
+          });
+          if (best) { best.click(); return 'button'; }
+          var x = window.innerWidth / 2, y = window.innerHeight / 2;
+          var target = document.elementFromPoint(x, y);
+          if (!target) return 'none';
+          ['click', 'click', 'dblclick'].forEach(function (type, i) {
+            target.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: y, detail: i + 1 }));
+          });
+          return 'dblclick';
+        })();
+        """
+        webView.evaluateJavaScript(script, completionHandler: nil)
+    }
+
     func goBack() { webView.goBack() }
     func goForward() { webView.goForward() }
     func reload() {
@@ -150,6 +191,7 @@ struct BrowserScreen: View {
     @Environment(\.dismiss) private var dismiss
     @FocusState private var addressFocused: Bool
     @State private var barHidden = false
+    @State private var heartVisible = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -166,6 +208,15 @@ struct BrowserScreen: View {
                 .padding(8)
                 .frame(maxWidth: .infinity, alignment: .trailing)
                 .accessibilityLabel(barHidden ? "Show address bar" : "Hide address bar for full screen")
+                Image(systemName: "heart.fill")
+                    .font(.system(size: 96))
+                    .foregroundStyle(.white)
+                    .shadow(color: .black.opacity(0.35), radius: 12)
+                    .scaleEffect(heartVisible ? 1 : 0.4)
+                    .opacity(heartVisible ? 1 : 0)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
                 if scroller.watchActive {
                     Label("Scrolling with your Watch", systemImage: "applewatch.radiowaves.left.and.right")
                         .font(.system(.footnote, design: .rounded, weight: .semibold))
@@ -176,6 +227,13 @@ struct BrowserScreen: View {
                 }
             }
             .animation(.snappy, value: scroller.watchActive)
+            .onChange(of: browser.likeCount) {
+                withAnimation(.spring(response: 0.25, dampingFraction: 0.55)) { heartVisible = true }
+                Task {
+                    try? await Task.sleep(nanoseconds: 650_000_000)
+                    withAnimation(.easeOut(duration: 0.25)) { heartVisible = false }
+                }
+            }
         }
         .background(Color.canvas)
     }

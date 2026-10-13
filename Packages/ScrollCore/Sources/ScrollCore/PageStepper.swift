@@ -51,7 +51,7 @@ public struct PageStepper: Sendable {
             lastScrollAt = nil
             return 0
 
-        case .ping:
+        case .like, .ping:
             return 0
         }
     }

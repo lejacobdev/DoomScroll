@@ -11,6 +11,13 @@ public enum BluetoothTransport {
     public static let characteristic = CBUUID(string: "7B3D8E10-5C1A-4F7B-9A52-D005C011A002")
     /// Advertisements carry a short name; both sides compare this form.
     public static func advertisedName(for macName: String) -> String { String(macName.prefix(20)) }
+
+    /// The system may shorten an advertised name to fit the packet, so a name that is a
+    /// prefix of the expected one (or the other way round) counts as a match.
+    public static func nameMatches(advertised: String, expected: String) -> Bool {
+        guard !advertised.isEmpty else { return false }
+        return expected.hasPrefix(advertised) || advertised.hasPrefix(expected)
+    }
 }
 
 // MARK: - Mac side (peripheral)
@@ -81,6 +88,9 @@ public final class BLEScrollServer: NSObject, CBPeripheralManagerDelegate, @unch
                                                      value: nil, permissions: [.writeable])
         let service = CBMutableService(type: BluetoothTransport.service, primary: true)
         service.characteristics = [characteristic]
+        // Bluetooth turning off and on again calls this a second time.
+        peripheral.stopAdvertising()
+        peripheral.removeAllServices()
         peripheral.add(service)
     }
 
@@ -150,6 +160,10 @@ public final class BLEScrollClient: NSObject, CBCentralManagerDelegate, CBPeriph
     private var characteristic: CBCharacteristic?
     private var wanted = false
     private var backoff: TimeInterval = 0.5
+    /// Messages waiting for the radio, each split into packets. A message is never cut
+    /// short once started, so the Mac never sees half a line.
+    private var outbox: [[Data]] = []
+    private let maxQueuedMessages = 24
     private var state = State.idle { didSet { if state != oldValue { onStateChange(state) } } }
 
     public init(macName: String, onStateChange: @escaping @Sendable (State) -> Void) {
@@ -177,24 +191,40 @@ public final class BLEScrollClient: NSObject, CBCentralManagerDelegate, CBPeriph
             if let p = self.peripheral { self.central?.cancelPeripheralConnection(p) }
             self.peripheral = nil
             self.characteristic = nil
+            self.outbox.removeAll()
             self.state = .idle
         }
     }
 
-    /// Writes one already-encoded line. Continuous updates are dropped if the radio is
-    /// busy; the next one supersedes them.
+    /// Queues one already-encoded line and sends as much as the radio accepts. If the
+    /// radio falls far behind, the oldest whole messages that haven't started are dropped.
     public func send(_ line: Data) {
         queue.async {
-            guard self.state == .ready, let p = self.peripheral, let c = self.characteristic,
-                  p.canSendWriteWithoutResponse else { return }
+            guard self.state == .ready, let p = self.peripheral else { return }
             let size = max(20, p.maximumWriteValueLength(for: .withoutResponse))
+            var packets: [Data] = []
             var offset = 0
             while offset < line.count {
                 let end = min(line.count, offset + size)
-                p.writeValue(line.subdata(in: offset..<end), for: c, type: .withoutResponse)
+                packets.append(line.subdata(in: offset..<end))
                 offset = end
             }
+            self.outbox.append(packets)
+            if self.outbox.count > self.maxQueuedMessages { self.outbox.remove(at: 1) }
+            self.flush()
         }
+    }
+
+    private func flush() {
+        guard state == .ready, let p = peripheral, let c = characteristic else { return }
+        while !outbox.isEmpty, p.canSendWriteWithoutResponse {
+            p.writeValue(outbox[0].removeFirst(), for: c, type: .withoutResponse)
+            if outbox[0].isEmpty { outbox.removeFirst() }
+        }
+    }
+
+    public func peripheralIsReady(toSendWriteWithoutResponse peripheral: CBPeripheral) {
+        flush()
     }
 
     // MARK: CBCentralManagerDelegate
@@ -218,10 +248,11 @@ public final class BLEScrollClient: NSObject, CBCentralManagerDelegate, CBPeriph
     public func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral,
                                advertisementData: [String: Any], rssi RSSI: NSNumber) {
         guard wanted, self.peripheral == nil else { return }
-        let name = (advertisementData[CBAdvertisementDataLocalNameKey] as? String) ?? peripheral.name
         // If the Mac advertised a name, it must be the paired one. No name: try it, the
-        // signature check rejects anything that is not our Mac.
-        if let name, name != expectedName { return }
+        // signature check rejects anything that is not our Mac. (`peripheral.name` is the
+        // cached device name, which can differ from the advertised one, so it isn't used.)
+        if let name = advertisementData[CBAdvertisementDataLocalNameKey] as? String,
+           !BluetoothTransport.nameMatches(advertised: name, expected: expectedName) { return }
         central.stopScan()
         self.peripheral = peripheral
         peripheral.delegate = self
@@ -244,6 +275,7 @@ public final class BLEScrollClient: NSObject, CBCentralManagerDelegate, CBPeriph
     private func dropAndRetry() {
         peripheral = nil
         characteristic = nil
+        outbox.removeAll()
         state = .idle
         guard wanted else { return }
         let delay = backoff
